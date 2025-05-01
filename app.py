@@ -27,31 +27,48 @@ st.title("📚 Doc Siofbq - Research Assistant")
 def configure_clients():
     """Loads secrets and configures API clients and Redis connection."""
     try:
-            # ONLY use os.getenv for this test
-        GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-        TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
-        UPSTASH_REDIS_HOST = os.getenv("UPSTASH_REDIS_HOST")
-        UPSTASH_REDIS_PORT = os.getenv("UPSTASH_REDIS_PORT")
-        UPSTASH_REDIS_PASSWORD = os.getenv("UPSTASH_REDIS_PASSWORD")
+        # Use Streamlit secrets if deployed, fallback to env vars for local dev
+        GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY", os.getenv("GOOGLE_API_KEY"))
+        TAVILY_API_KEY = st.secrets.get("TAVILY_API_KEY", os.getenv("TAVILY_API_KEY"))
+        UPSTASH_REDIS_HOST = st.secrets.get("UPSTASH_REDIS_HOST", os.getenv("UPSTASH_REDIS_HOST"))
+        UPSTASH_REDIS_PORT = st.secrets.get("UPSTASH_REDIS_PORT", os.getenv("UPSTASH_REDIS_PORT"))
+        UPSTASH_REDIS_PASSWORD = st.secrets.get("UPSTASH_REDIS_PASSWORD", os.getenv("UPSTASH_REDIS_PASSWORD"))
 
-            # Add print statements to see what's being loaded
-        print(f"--- DEBUG ---")
-        print(f"GOOGLE_API_KEY loaded: {GOOGLE_API_KEY is not None and len(GOOGLE_API_KEY) > 0}")
-        print(f"TAVILY_API_KEY loaded: {TAVILY_API_KEY is not None and len(TAVILY_API_KEY) > 0}")
-        print(f"UPSTASH_REDIS_HOST loaded: {UPSTASH_REDIS_HOST is not None and len(UPSTASH_REDIS_HOST) > 0}")
-        print(f"UPSTASH_REDIS_PORT loaded: {UPSTASH_REDIS_PORT is not None and len(UPSTASH_REDIS_PORT) > 0}")
-        print(f"UPSTASH_REDIS_PASSWORD loaded: {UPSTASH_REDIS_PASSWORD is not None and len(UPSTASH_REDIS_PASSWORD) > 0}")
-        print(f"--- END DEBUG ---")
-
-
+        # Add the missing closing parenthesis here V
         if not all([GOOGLE_API_KEY, TAVILY_API_KEY, UPSTASH_REDIS_HOST, UPSTASH_REDIS_PORT, UPSTASH_REDIS_PASSWORD]):
-            st.error("⚠️ Critical API keys or Redis connection details are missing FROM ENV VARS. Please check Render Environment Variables.")
-            # See debug prints in Render logs
-            ]st.stop()
+            st.error("⚠️ Critical API keys or Redis connection details are missing. Please check your secrets configuration.")
+            st.stop()
 
-            # ... (rest of the function remains the same)
+        # Configure Gemini
+        genai.configure(api_key=GOOGLE_API_KEY)
+        gemini_model = genai.GenerativeModel('gemini-1.5-flash') # Use a fast model
 
+        # Configure Tavily
+        tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
 
+        # Configure Redis
+        redis_client = redis.Redis(
+            host=UPSTASH_REDIS_HOST,
+            port=int(UPSTASH_REDIS_PORT), # Ensure port is integer
+            password=UPSTASH_REDIS_PASSWORD,
+            ssl=True, # Upstash requires SSL
+            decode_responses=True # Decode responses to strings
+        )
+        # Test Redis connection
+        redis_client.ping()
+
+        return gemini_model, tavily_client, redis_client
+
+    except redis.exceptions.ConnectionError as e:
+        st.error(f"🚨 Could not connect to Redis: {e}. Please verify connection details and Upstash instance status.")
+        st.stop()
+    # Also handle potential ValueError if port isn't a number
+    except ValueError as e:
+        st.error(f"🚨 Invalid Redis port configured: {UPSTASH_REDIS_PORT}. It must be a number. Error: {e}")
+        st.stop()
+    except Exception as e:
+        st.error(f"🚨 An error occurred during configuration: {e}")
+        st.stop()
 
 # Initialize clients
 gemini_model, tavily_client, redis_client = configure_clients()
