@@ -24,66 +24,66 @@ st.title("📚 Doc Siofbq - Research Assistant")
 # API Keys and Clients Setup
     # --- Temporarily modify for Render debugging ---
     # --- DEBUGGING VERSION - REMOVE st.secrets.get ---
-    @st.cache_resource
-    def configure_clients():
-        """Loads secrets and configures API clients and Redis connection."""
-        print("--- ENTERING configure_clients (DEBUGGING VERSION) ---") # Add entry print
-        try:
-            # ONLY use os.getenv for this test
-            GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-            TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
-            UPSTASH_REDIS_HOST = os.getenv("UPSTASH_REDIS_HOST")
-            UPSTASH_REDIS_PORT = os.getenv("UPSTASH_REDIS_PORT")
-            UPSTASH_REDIS_PASSWORD = os.getenv("UPSTASH_REDIS_PASSWORD")
+@st.cache_resource
+def configure_clients():
+    """Loads secrets and configures API clients and Redis connection."""
+    print("--- ENTERING configure_clients (DEBUGGING VERSION) ---") # Add entry print
+    try:
+        # ONLY use os.getenv for this test
+        GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+        TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+        UPSTASH_REDIS_HOST = os.getenv("UPSTASH_REDIS_HOST")
+        UPSTASH_REDIS_PORT = os.getenv("UPSTASH_REDIS_PORT")
+        UPSTASH_REDIS_PASSWORD = os.getenv("UPSTASH_REDIS_PASSWORD")
 
             # Add print statements to see what's being loaded
-            print(f"--- DEBUG ENV VARS ---")
-            print(f"GOOGLE_API_KEY loaded: {GOOGLE_API_KEY is not None and len(str(GOOGLE_API_KEY)) > 0}")
-            print(f"TAVILY_API_KEY loaded: {TAVILY_API_KEY is not None and len(str(TAVILY_API_KEY)) > 0}")
-            print(f"UPSTASH_REDIS_HOST loaded: {UPSTASH_REDIS_HOST is not None and len(str(UPSTASH_REDIS_HOST)) > 0}")
-            print(f"UPSTASH_REDIS_PORT loaded: {UPSTASH_REDIS_PORT is not None and len(str(UPSTASH_REDIS_PORT)) > 0}")
-            print(f"UPSTASH_REDIS_PASSWORD loaded: {UPSTASH_REDIS_PASSWORD is not None and len(str(UPSTASH_REDIS_PASSWORD)) > 0}")
-            # Optionally print the first few chars of the values to verify they look right (DON'T print full secrets)
-            print(f"  GOOGLE_API_KEY start: {str(GOOGLE_API_KEY)[:5] if GOOGLE_API_KEY else 'None'}")
-            print(f"  TAVILY_API_KEY start: {str(TAVILY_API_KEY)[:5] if TAVILY_API_KEY else 'None'}")
-            print(f"  UPSTASH_REDIS_HOST start: {str(UPSTASH_REDIS_HOST)[:5] if UPSTASH_REDIS_HOST else 'None'}")
-            print(f"  UPSTASH_REDIS_PORT: {UPSTASH_REDIS_PORT if UPSTASH_REDIS_PORT else 'None'}")
-            print(f"  UPSTASH_REDIS_PASSWORD start: {str(UPSTASH_REDIS_PASSWORD)[:5] if UPSTASH_REDIS_PASSWORD else 'None'}")
-            print(f"--- END DEBUG ENV VARS ---")
+        print(f"--- DEBUG ENV VARS ---")
+        print(f"GOOGLE_API_KEY loaded: {GOOGLE_API_KEY is not None and len(str(GOOGLE_API_KEY)) > 0}")
+        print(f"TAVILY_API_KEY loaded: {TAVILY_API_KEY is not None and len(str(TAVILY_API_KEY)) > 0}")
+        print(f"UPSTASH_REDIS_HOST loaded: {UPSTASH_REDIS_HOST is not None and len(str(UPSTASH_REDIS_HOST)) > 0}")
+        print(f"UPSTASH_REDIS_PORT loaded: {UPSTASH_REDIS_PORT is not None and len(str(UPSTASH_REDIS_PORT)) > 0}")
+        print(f"UPSTASH_REDIS_PASSWORD loaded: {UPSTASH_REDIS_PASSWORD is not None and len(str(UPSTASH_REDIS_PASSWORD)) > 0}")
+        # Optionally print the first few chars of the values to verify they look right (DON'T print full secrets)
+        print(f"  GOOGLE_API_KEY start: {str(GOOGLE_API_KEY)[:5] if GOOGLE_API_KEY else 'None'}")
+        print(f"  TAVILY_API_KEY start: {str(TAVILY_API_KEY)[:5] if TAVILY_API_KEY else 'None'}")
+        print(f"  UPSTASH_REDIS_HOST start: {str(UPSTASH_REDIS_HOST)[:5] if UPSTASH_REDIS_HOST else 'None'}")
+        print(f"  UPSTASH_REDIS_PORT: {UPSTASH_REDIS_PORT if UPSTASH_REDIS_PORT else 'None'}")
+        print(f"  UPSTASH_REDIS_PASSWORD start: {str(UPSTASH_REDIS_PASSWORD)[:5] if UPSTASH_REDIS_PASSWORD else 'None'}")
+        print(f"--- END DEBUG ENV VARS ---")
 
             # Check if any are missing
-            missing_vars = []
-            if not GOOGLE_API_KEY: missing_vars.append("GOOGLE_API_KEY")
-            if not TAVILY_API_KEY: missing_vars.append("TAVILY_API_KEY")
-            if not UPSTASH_REDIS_HOST: missing_vars.append("UPSTASH_REDIS_HOST")
-            if not UPSTASH_REDIS_PORT: missing_vars.append("UPSTASH_REDIS_PORT")
-            if not UPSTASH_REDIS_PASSWORD: missing_vars.append("UPSTASH_REDIS_PASSWORD")
+        missing_vars = []
+        if not GOOGLE_API_KEY: missing_vars.append("GOOGLE_API_KEY")
+        if not TAVILY_API_KEY: missing_vars.append("TAVILY_API_KEY")
+        if not UPSTASH_REDIS_HOST: missing_vars.append("UPSTASH_REDIS_HOST")
+        if not UPSTASH_REDIS_PORT: missing_vars.append("UPSTASH_REDIS_PORT")
+        if not UPSTASH_REDIS_PASSWORD: missing_vars.append("UPSTASH_REDIS_PASSWORD")
 
-            if missing_vars:
-                error_message = f"⚠️ Critical API keys or Redis connection details missing FROM ENV VARS: {', '.join(missing_vars)}. Please check Render Environment Variables."
-                print(f"ERROR: {error_message}") # Print error to logs
-                st.error(error_message)
-                st.stop()
+        if missing_vars:
+            error_message = f"⚠️ Critical API keys or Redis connection details missing FROM ENV VARS: {', '.join(missing_vars)}. Please check Render Environment Variables."
+            print(f"ERROR: {error_message}") # Print error to logs
+            st.error(error_message)
+            st.stop()
 
             # --- Rest of the function ---
-            print("--- CONFIGURING CLIENTS ---") # Add progress print
+        print("--- CONFIGURING CLIENTS ---") # Add progress print
 
             # Configure Gemini
-            genai.configure(api_key=GOOGLE_API_KEY)
-            gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+        genai.configure(api_key=GOOGLE_API_KEY)
+        gemini_model = genai.GenerativeModel('gemini-1.5-flash')
 
             # Configure Tavily
-            tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
+        tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
 
             # Configure Redis
             # Add extra check for port validity before int() conversion
-            if not UPSTASH_REDIS_PORT or not UPSTASH_REDIS_PORT.isdigit():
-                 port_error_msg = f"🚨 Invalid or missing UPSTASH_REDIS_PORT: '{UPSTASH_REDIS_PORT}'. It must be a number."
-                 print(f"ERROR: {port_error_msg}")
-                 st.error(port_error_msg)
-                 st.stop()
+        if not UPSTASH_REDIS_PORT or not UPSTASH_REDIS_PORT.isdigit():
+            port_error_msg = f"🚨 Invalid or missing UPSTASH_REDIS_PORT: '{UPSTASH_REDIS_PORT}'. It must be a number."
+            print(f"ERROR: {port_error_msg}")
+            st.error(port_error_msg)
+            st.stop()
 
-            redis_client = redis.Redis(
+        redis_client = redis.Redis(
                 host=UPSTASH_REDIS_HOST,
                 port=int(UPSTASH_REDIS_PORT), # Ensure port is integer
                 password=UPSTASH_REDIS_PASSWORD,
@@ -91,28 +91,28 @@ st.title("📚 Doc Siofbq - Research Assistant")
                 decode_responses=True # Decode responses to strings
             )
             # Test Redis connection
-            print("--- PINGING REDIS ---")
-            redis_client.ping()
-            print("--- REDIS PING SUCCESSFUL ---")
+        print("--- PINGING REDIS ---")
+        redis_client.ping()
+        print("--- REDIS PING SUCCESSFUL ---")
 
-            print("--- RETURNING CLIENTS ---")
-            return gemini_model, tavily_client, redis_client
+        print("--- RETURNING CLIENTS ---")
+        return gemini_model, tavily_client, redis_client
 
-        except redis.exceptions.ConnectionError as e:
-            error_msg = f"🚨 Could not connect to Redis: {e}. Please verify connection details and Upstash instance status."
-            print(f"ERROR: {error_msg}")
-            st.error(error_msg)
-            st.stop()
-        except ValueError as e: # Catch potential int() error specifically
-            error_msg = f"🚨 Invalid Redis port configured: '{UPSTASH_REDIS_PORT}'. It must be a number. Error: {e}"
-            print(f"ERROR: {error_msg}")
-            st.error(error_msg)
-            st.stop()
-        except Exception as e:
-            error_msg = f"🚨 An unexpected error occurred during configuration: {e}"
-            print(f"ERROR: {error_msg}")
-            st.error(error_msg)
-            st.stop()
+    except redis.exceptions.ConnectionError as e:
+        error_msg = f"🚨 Could not connect to Redis: {e}. Please verify connection details and Upstash instance status."
+        print(f"ERROR: {error_msg}")
+        st.error(error_msg)
+        st.stop()
+    except ValueError as e: # Catch potential int() error specifically
+        error_msg = f"🚨 Invalid Redis port configured: '{UPSTASH_REDIS_PORT}'. It must be a number. Error: {e}"
+        print(f"ERROR: {error_msg}")
+        st.error(error_msg)
+        st.stop()
+    except Exception as e:
+        error_msg = f"🚨 An unexpected error occurred during configuration: {e}"
+        print(f"ERROR: {error_msg}")
+        st.error(error_msg)
+        st.stop()
 
 
 # Initialize clients
