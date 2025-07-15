@@ -406,23 +406,24 @@ def scrape_article_content(url):
         return None, f"An unexpected error occurred during ScraperAPI request: {e}"
 
 
-def search_tavily(query, search_depth="basic", max_results=7):
+def search_tavily(query, search_depth="basic", max_results=7, status_text_updater=None):
     """Performs a search using the Tavily API, now with domain filtering."""
     try:
-        st.info(f"🧠 Thinking... Searching with Tavily for: '{query}' (filtered by academic domains)")
+        if status_text_updater: status_text_updater.write(f"Searching Tavily for: '{query}'...")
         response = tavily_client.search(
             query=query,
             search_depth=search_depth,
             max_results=max_results,
-            include_domains=ACADEMIC_DOMAINS # NEW: Apply domain filter
+            include_domains=ACADEMIC_DOMAINS
         )
         return response.get('results', []), None
     except Exception as e:
         st.error(f"Tavily search failed: {e}")
         return [], str(e)
 
-def optimize_scholar_query(user_query):
+def optimize_scholar_query(user_query, status_text_updater=None):
     """Uses Gemini to optimize a user's natural language query for Google Scholar."""
+    if status_text_updater: status_text_updater.write("Optimizing query for Google Scholar...")
     prompt_template = f"""
     You are an AI research assistant. Your task is to rephrase a user's natural language research query into a concise, effective, and keyword-rich search query suitable for academic databases like Google Scholar.
 
@@ -448,7 +449,6 @@ def optimize_scholar_query(user_query):
     User Query: "{user_query}"
     Optimized Query:
     """
-    st.info("🧠 Optimizing your query for Google Scholar...")
     optimized_query, error = generate_gemini(prompt_template)
     if error:
         st.warning(f"Could not optimize query, using original: {error}")
@@ -463,7 +463,7 @@ def optimize_scholar_query(user_query):
     return optimized_query
 
 
-def search_google_scholar(query, num_results=7):
+def search_google_scholar(query, num_results=7, status_text_updater=None):
     """Performs a search using the SerpApi Google Scholar API with improved debugging."""
     scholar_results = []
     error = None
@@ -482,8 +482,7 @@ def search_google_scholar(query, num_results=7):
     }
 
     try:
-        st.info(f"Searching Google Scholar for: '{query}'")
-
+        if status_text_updater: status_text_updater.write(f"Searching Google Scholar for: '{query}'...")
         search = GoogleSearch(params)
         results_json = search.get_dict()
         
@@ -619,12 +618,12 @@ def search_google_scholar(query, num_results=7):
     
     return scholar_results, error
 
-def search_exa(query, num_results=7):
+def search_exa(query, num_results=7, status_text_updater=None):
     """Performs a search using the Exa.ai API (document retrieval), now with domain filtering."""
     exa_results = []
     error = None
     try:
-        st.info(f"🧠 Thinking... Searching with Exa.ai for individual articles: '{query}' (filtered by academic domains)")
+        if status_text_updater: status_text_updater.write(f"Searching Exa.ai for individual articles: '{query}'...")
         response = exa_client.search(
             query=query,
             num_results=num_results,
@@ -677,18 +676,18 @@ def search_exa(query, num_results=7):
     return exa_results, error
 
 
-def generate_exa_research_report(query, timeout_seconds=180, polling_interval=5):
+def generate_exa_research_report(query, timeout_seconds=180, polling_interval=5, status_text_updater=None):
     """
     Generates a comprehensive research report using Exa.ai's research task API.
     """
-    st.info(f"🔬 Initiating Exa.ai Research Task for: '{query}'")
+    if status_text_updater: status_text_updater.write(f"Initiating Exa.ai Research Task for: '{query}'...")
     try:
         task_stub = exa_client.research.create_task(
             instructions=f"Provide a comprehensive, concise, and structured summary of the research topic: {query}",
             model="exa-research",
             output_infer_schema=True
         )
-        st.info(f"Exa.ai research task created (ID: {task_stub.id}). Polling for results... This may take a moment.")
+        if status_text_updater: status_text_updater.write(f"Exa.ai research task created (ID: {task_stub.id}). Polling for results...")
         
         start_time = time.time()
         while True:
@@ -719,7 +718,7 @@ def generate_exa_research_report(query, timeout_seconds=180, polling_interval=5)
                 break
                 
             # Provide periodic feedback to the user
-            st.info(f"Task is still processing... ({int(elapsed_time)} seconds elapsed)")
+            if status_text_updater: status_text_updater.write(f"Task is still processing... ({int(elapsed_time)} seconds elapsed)")
             time.sleep(polling_interval)
     except Exception as e:
         report_content = f"🚨 Error generating Exa.ai Research Report: {e}"
@@ -736,92 +735,96 @@ def perform_unified_search(query):
     """
     all_processed_results = {}
 
-    # Optimize the query once for all search engines
-    optimized_query = optimize_scholar_query(query)
+    with st.status("🧠 Processing your research query...", expanded=True) as status_container:
+        status_text_updater = status_container.empty() # Placeholder for dynamic updates
 
-    # 1. Search with Tavily (using optimized query and domain filter)
-    tavily_results, tavily_error = search_tavily(optimized_query) # NEW: Use optimized_query
-    if tavily_error:
-        st.warning(f"Tavily search encountered an issue: {tavily_error}")
-    for result in tavily_results:
-        url = result.get('url')
-        if url:
-            all_processed_results[url] = {
-                "title": result.get('title', 'No Title'),
-                "url": url,
-                "content_snippet": result.get('content', 'No snippet available.'),
-                "source_type": result.get('source', 'Website'),
-                "query": query, # Store original query
-                "optimized_query": optimized_query, # Store optimized query
-                "summary": None,
-                "annotation": None,
-                "authors": "",
-                "year": "",
-                "pdf_url": "",
-                "main_pub_url": "",
-                "doi": "",
-                "journal_name": "",
-                "volume": "", # NEW
-                "pages": ""   # NEW
-            }
+        # Optimize the query once for all search engines
+        optimized_query = optimize_scholar_query(query, status_text_updater)
 
-    # 2. Search with Google Scholar (already uses optimized query)
-    scholar_results, scholar_error = search_google_scholar(optimized_query)
-    if scholar_error:
-        st.warning(f"Google Scholar search encountered an issue: {scholar_error}")
-    for result in scholar_results:
-        url = result.get('url')
-        if url:
-            existing_data = all_processed_results.get(url, {})
-            all_processed_results[url] = {
-                "title": result.get('title', existing_data.get('title', 'No Title')),
-                "url": url,
-                "content_snippet": result.get('content_snippet', existing_data.get('content_snippet', 'No snippet available.')),
-                "source_type": result.get('source_type', existing_data.get('source_type', 'Website')),
-                "query": query,
-                "optimized_query": optimized_query,
-                "summary": existing_data.get('summary'),
-                "annotation": existing_data.get('annotation'),
-                "authors": result.get('authors', existing_data.get('authors', '')),
-                "year": result.get('year', existing_data.get('year', '')),
-                "pdf_url": result.get('pdf_url', existing_data.get('pdf_url', '')),
-                "main_pub_url": result.get('main_pub_url', existing_data.get('main_pub_url', '')),
-                "doi": result.get('doi', existing_data.get('doi', '')),
-                "journal_name": result.get('journal_name', existing_data.get('journal_name', '')),
-                "volume": result.get('volume', existing_data.get('volume', '')), # NEW
-                "pages": result.get('pages', existing_data.get('pages', ''))   # NEW
-            }
+        # 1. Search with Tavily (using optimized query and domain filter)
+        tavily_results, tavily_error = search_tavily(optimized_query, status_text_updater)
+        if tavily_error:
+            status_text_updater.warning(f"Tavily search encountered an issue: {tavily_error}")
+        for result in tavily_results:
+            url = result.get('url')
+            if url:
+                all_processed_results[url] = {
+                    "title": result.get('title', 'No Title'),
+                    "url": url,
+                    "content_snippet": result.get('content', 'No snippet available.'),
+                    "source_type": result.get('source', 'Website'),
+                    "query": query, # Store original query
+                    "optimized_query": optimized_query, # Store optimized query
+                    "summary": None,
+                    "annotation": None,
+                    "authors": "",
+                    "year": "",
+                    "pdf_url": "",
+                    "main_pub_url": "",
+                    "doi": "",
+                    "journal_name": "",
+                    "volume": "",
+                    "pages": ""
+                }
 
-    # 3. Search with Exa.ai (for individual articles/snippets, using optimized query and domain filter)
-    exa_search_results, exa_search_error = search_exa(optimized_query) # NEW: Use optimized_query
-    if exa_search_error:
-        st.warning(f"Exa.ai individual article search encountered an issue: {exa_search_error}")
-    for result in exa_search_results:
-        url = result.get('url')
-        if url:
-            existing_data = all_processed_results.get(url, {})
-            all_processed_results[url] = {
-                "title": result.get('title', existing_data.get('title', 'No Title')),
-                "url": url,
-                "content_snippet": result.get('content_snippet') if len(result.get('content_snippet', '')) > len(existing_data.get('content_snippet', '')) else existing_data.get('content_snippet', 'No snippet available.'),
-                "source_type": result.get('source_type', existing_data.get('source_type', 'Website')),
-                "query": query,
-                "optimized_query": optimized_query,
-                "summary": existing_data.get('summary'),
-                "annotation": existing_data.get('annotation'),
-                "authors": result.get('authors', existing_data.get('authors', '')),
-                "year": result.get('year', existing_data.get('year', '')),
-                "pdf_url": result.get('pdf_url', existing_data.get('pdf_url', '')),
-                "main_pub_url": result.get('main_pub_url', existing_data.get('main_pub_url', '')),
-                "doi": result.get('doi', existing_data.get('doi', '')),
-                "journal_name": result.get('journal_name', existing_data.get('journal_name', '')),
-                "volume": result.get('volume', existing_data.get('volume', '')), # NEW
-                "pages": result.get('pages', existing_data.get('pages', ''))   # NEW
-            }
-    
-    # 4. Generate Exa.ai Research Report (separate, synthesized output, using original query)
-    # The research task is a synthesis, so the original, broader query is often more suitable here.
-    exa_research_report = generate_exa_research_report(query) 
+        # 2. Search with Google Scholar (already uses optimized query)
+        scholar_results, scholar_error = search_google_scholar(optimized_query, status_text_updater)
+        if scholar_error:
+            status_text_updater.warning(f"Google Scholar search encountered an issue: {scholar_error}")
+        for result in scholar_results:
+            url = result.get('url')
+            if url:
+                existing_data = all_processed_results.get(url, {})
+                all_processed_results[url] = {
+                    "title": result.get('title', existing_data.get('title', 'No Title')),
+                    "url": url,
+                    "content_snippet": result.get('content_snippet', existing_data.get('content_snippet', 'No snippet available.')),
+                    "source_type": result.get('source_type', existing_data.get('source_type', 'Website')),
+                    "query": query,
+                    "optimized_query": optimized_query,
+                    "summary": existing_data.get('summary'),
+                    "annotation": existing_data.get('annotation'),
+                    "authors": result.get('authors', existing_data.get('authors', '')),
+                    "year": result.get('year', existing_data.get('year', '')),
+                    "pdf_url": result.get('pdf_url', existing_data.get('pdf_url', '')),
+                    "main_pub_url": result.get('main_pub_url', existing_data.get('main_pub_url', '')),
+                    "doi": result.get('doi', existing_data.get('doi', '')),
+                    "journal_name": result.get('journal_name', existing_data.get('journal_name', '')),
+                    "volume": result.get('volume', existing_data.get('volume', '')),
+                    "pages": result.get('pages', existing_data.get('pages', ''))
+                }
+        
+        # 3. Search with Exa.ai (for individual articles/snippets, using optimized query and domain filter)
+        exa_search_results, exa_search_error = search_exa(optimized_query, status_text_updater)
+        if exa_search_error:
+            status_text_updater.warning(f"Exa.ai individual article search encountered an issue: {exa_search_error}")
+        for result in exa_search_results:
+            url = result.get('url')
+            if url:
+                existing_data = all_processed_results.get(url, {})
+                all_processed_results[url] = {
+                    "title": result.get('title', existing_data.get('title', 'No Title')),
+                    "url": url,
+                    "content_snippet": result.get('content_snippet') if len(result.get('content_snippet', '')) > len(existing_data.get('content_snippet', '')) else existing_data.get('content_snippet', 'No snippet available.'),
+                    "source_type": result.get('source_type', existing_data.get('source_type', 'Website')),
+                    "query": query,
+                    "optimized_query": optimized_query,
+                    "summary": existing_data.get('summary'),
+                    "annotation": existing_data.get('annotation'),
+                    "authors": result.get('authors', existing_data.get('authors', '')),
+                    "year": result.get('year', existing_data.get('year', '')),
+                    "pdf_url": result.get('pdf_url', existing_data.get('pdf_url', '')),
+                    "main_pub_url": result.get('main_pub_url', existing_data.get('main_pub_url', '')),
+                    "doi": result.get('doi', existing_data.get('doi', '')),
+                    "journal_name": result.get('journal_name', existing_data.get('journal_name', '')),
+                    "volume": result.get('volume', existing_data.get('volume', '')),
+                    "pages": result.get('pages', existing_data.get('pages', ''))
+                }
+        
+        # 4. Generate Exa.ai Research Report (separate, synthesized output, using original query)
+        exa_research_report = generate_exa_research_report(query, status_text_updater=status_text_updater)
+        
+        status_container.update(label="Research complete!", state="complete", expanded=False)
 
     return list(all_processed_results.values()), exa_research_report
 
@@ -1111,7 +1114,7 @@ def generate_citations(item):
 # --- Sidebar ---
 with st.sidebar:
     st.image("https://docs.streamlit.io/logo.svg", width=100)
-    st.header("Library")
+    st.header("Library & Settings")
     st.divider()
 
     # Folder Management
@@ -1214,18 +1217,13 @@ if prompt := st.chat_input("Enter your research topic or query..."):
     save_chat_message(st.session_state.session_id, "user", prompt)
 
     with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        message_placeholder.markdown("🧠 Thinking... Searching across multiple sources (Tavily, Google Scholar, Exa.ai) and generating a research report...")
-        
+        # The main processing status is now handled by st.status inside perform_unified_search
         st.session_state.current_processed_results = {}
 
         combined_results, exa_research_report = perform_unified_search(prompt)
         
         response_content = ""
         if combined_results:
-            for res in combined_results:
-                st.session_state.current_processed_results[res['url']] = res
-
             response_content += f"Found {len(combined_results)} potential sources for '{prompt}'. You can process them below."
         else:
             response_content += f"😕 Sorry, I couldn't find specific individual results for '{prompt}' from any source."
@@ -1234,7 +1232,8 @@ if prompt := st.chat_input("Enter your research topic or query..."):
         response_content += exa_research_report
         response_content += "\n\n---\n"
 
-        message_placeholder.markdown(response_content)
+        # Display the final response content after the status spinner is gone
+        st.markdown(response_content) # Use st.markdown directly here
 
         st.session_state.messages.append({"role": "assistant", "content": response_content})
         save_chat_message(st.session_state.session_id, "assistant", response_content)
