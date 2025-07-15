@@ -119,13 +119,13 @@ gemini_model, tavily_client, redis_client, serpapi_client, exa_client, SCRAPERAP
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+    st.session_state.messages = [] # Initialize empty, history loaded on demand or after first message
 if "current_tavily_results" not in st.session_state:
     st.session_state.current_tavily_results = []
 if "current_processed_results" not in st.session_state:
     st.session_state.current_processed_results = {}
 if "selected_folder_id" not in st.session_state:
-    st.session_state.selected_folder_id = "root"
+    st.session_state.selected_folder_id = None # Initialize to None, meaning no folder is selected for display
 if "folders_cache" not in st.session_state:
     st.session_state.folders_cache = None
 
@@ -204,7 +204,7 @@ def delete_folder(folder_key):
         st.toast("Folder deleted.")
         st.session_state.folders_cache = None
         if st.session_state.selected_folder_id == folder_id:
-            st.session_state.selected_folder_id = "root"
+            st.session_state.selected_folder_id = None # Reset to None if deleted folder was selected
     except Exception as e:
         st.error(f"Error deleting folder: {e}")
 
@@ -352,14 +352,12 @@ def scrape_article_content(url):
         params['render'] = 'true' 
 
     try:
-        st.info(f"Using ScraperAPI to access: {url} (PDF check: {is_pdf_url}, JS render: {not is_pdf_url})")
         response = requests.get(scraperapi_url, params=params, headers=headers, timeout=30) # Increased timeout for ScraperAPI
         response.raise_for_status()
 
         content_type = response.headers.get('Content-Type', '').lower()
 
         if 'application/pdf' in content_type:
-            st.info(f"ScraperAPI returned PDF content. Attempting to extract text from PDF: {url}")
             try:
                 pdf_file = BytesIO(response.content)
                 text = extract_text(pdf_file)
@@ -368,7 +366,6 @@ def scrape_article_content(url):
             except Exception as e:
                 return None, f"Failed to extract text from PDF returned by ScraperAPI: {e}"
         elif 'text/html' in content_type:
-            st.info(f"ScraperAPI returned HTML content. Attempting to parse HTML: {url}")
             soup = BeautifulSoup(response.content, 'html.parser')
 
             main_content = None
@@ -452,7 +449,6 @@ def optimize_scholar_query(user_query):
     Optimized Query:
     """
     st.info("🧠 Optimizing your query for Google Scholar...")
-    print(f"DEBUG: Optimizing query: {user_query}")
     optimized_query, error = generate_gemini(prompt_template)
     if error:
         st.warning(f"Could not optimize query, using original: {error}")
@@ -466,24 +462,6 @@ def optimize_scholar_query(user_query):
 
     return optimized_query
 
-# DEBUG: Check if API keys are loaded properly (for console output)
-print("=== DEBUG: Environment Variables Check ===")
-print(f"SERPAPI_API_KEY loaded: {'Yes' if os.getenv('SERPAPI_API_KEY') else 'No'}")
-if os.getenv('SERPAPI_API_KEY'):
-    key = os.getenv('SERPAPI_API_KEY')
-    print(f"SERPAPI_API_KEY preview: {key[:4]}...{key[-4:]} (length: {len(key)})")
-else:
-    print("SERPAPI_API_KEY is None or empty")
-print(f"EXA_API_KEY loaded: {'Yes' if os.getenv('EXA_API_KEY') else 'No'}")
-if os.getenv('EXA_API_KEY'):
-    key = os.getenv('EXA_API_KEY')
-    print(f"EXA_API_KEY preview: {key[:4]}...{key[-4:]} (length: {len(key)})")
-else:
-    print("EXA_API_KEY is None or empty")
-print(f"GOOGLE_API_KEY loaded: {'Yes' if os.getenv('GOOGLE_API_KEY') else 'No'}")
-print(f"TAVILY_API_KEY loaded: {'Yes' if os.getenv('TAVILY_API_KEY') else 'No'}")
-print(f"SCRAPERAPI_API_KEY loaded: {'Yes' if os.getenv('SCRAPERAPI_API_KEY') else 'No'}")
-print("=== END DEBUG ===")
 
 def search_google_scholar(query, num_results=7):
     """Performs a search using the SerpApi Google Scholar API with improved debugging."""
@@ -504,43 +482,34 @@ def search_google_scholar(query, num_results=7):
     }
 
     try:
-        st.info(f"DEBUG: Sending query to SerpApi Google Scholar: '{query}'")
-        print(f"DEBUG: Sending query to SerpApi Google Scholar: '{query}')")
+        st.info(f"Searching Google Scholar for: '{query}'")
 
         search = GoogleSearch(params)
         results_json = search.get_dict()
         
-        print(f"DEBUG: SerpApi Response Keys: {list(results_json.keys())}")
-        
         if results_json.get('search_metadata', {}).get('status') == 'Error':
             error = results_json.get('search_metadata', {}).get('error') or "Unknown SerpApi error."
             st.error(f"SerpApi Error: {error}")
-            print(f"ERROR: SerpApi Error: {error}")
             return [], error
         
         if 'error' in results_json:
             error = results_json['error']
             st.error(f"SerpApi Error: {error}")
-            print(f"ERROR: SerpApi Error: {error}")
             return [], error
 
-        search_metadata = results_json.get('search_metadata', {})
+        search_metadata = results.get('search_metadata', {})
         if search_metadata.get('status') != 'Success':
             error = f"Search not successful. Status: {search_metadata.get('status')}"
             st.error(error)
-            print(f"ERROR: {error}")
             return [], error
 
         organic_results = results_json.get('organic_results', [])
-        print(f"DEBUG: Found {len(organic_results)} organic results")
 
         if not organic_results:
             st.info("No organic results found from SerpApi Google Scholar.")
-            print("DEBUG: No organic results found from SerpApi Google Scholar.")
             return [], None
 
         for i, result in enumerate(organic_results):
-            print(f"DEBUG: Processing result {i+1}: {result.get('title', 'No Title')}")
             
             title = result.get('title', 'No Title')
             snippet = result.get('snippet', 'No snippet available.')
@@ -641,19 +610,12 @@ def search_google_scholar(query, num_results=7):
                     "volume": volume, # NEW
                     "pages": pages   # NEW
                 })
-                print(f"DEBUG: Added Scholar result: {title}")
             else:
                 st.warning(f"Skipping a Google Scholar result due to missing URL: {title}")
-                print(f"WARNING: Skipping result due to missing URL: {title}")
-
-        print(f"DEBUG: Returning {len(scholar_results)} Scholar results")
 
     except Exception as e:
         error = f"SerpApi Google Scholar search failed: {e}"
         st.error(error)
-        print(f"ERROR: {e}")
-        import traceback
-        print(f"TRACEBACK: {traceback.format_exc()}")
     
     return scholar_results, error
 
@@ -672,7 +634,6 @@ def search_exa(query, num_results=7):
         
         if response.results:
             for i, result in enumerate(response.results):
-                print(f"DEBUG: Processing Exa result {i+1}: {result.title}")
                 title = result.title or "No Title"
                 url = result.url
                 snippet = result.text or "No snippet available."
@@ -704,20 +665,14 @@ def search_exa(query, num_results=7):
                         "volume": volume, # NEW
                         "pages": pages   # NEW
                     })
-                    print(f"DEBUG: Added Exa search result: {title}")
                 else:
                     st.warning(f"Skipping an Exa.ai search result due to missing URL: {title}")
-                    print(f"WARNING: Skipping Exa search result due to missing URL: {title}")
         else:
             st.info("No individual articles found from Exa.ai search.")
-            print("DEBUG: No individual articles found from Exa.ai search.")
 
     except Exception as e:
         error = f"Exa.ai search failed: {e}"
         st.error(error)
-        print(f"ERROR: {e}")
-        import traceback
-        print(f"TRACEBACK: {traceback.format_exc()}")
     
     return exa_results, error
 
@@ -728,11 +683,6 @@ def generate_exa_research_report(query, timeout_seconds=180, polling_interval=5)
     """
     st.info(f"🔬 Initiating Exa.ai Research Task for: '{query}'")
     try:
-        # Print SDK version for debugging
-        import exa_py
-        sdk_version = getattr(exa_py, '__version__', 'Unknown')
-        print(f"DEBUG: Using Exa SDK version: {sdk_version}")
-        
         task_stub = exa_client.research.create_task(
             instructions=f"Provide a comprehensive, concise, and structured summary of the research topic: {query}",
             model="exa-research",
@@ -748,30 +698,15 @@ def generate_exa_research_report(query, timeout_seconds=180, polling_interval=5)
                 
             task = exa_client.research.poll_task(task_stub.id)
             
-            # Debug the task object structure
-            print(f"DEBUG: Task status: {task.status}")
-            print(f"DEBUG: Task object attributes: {dir(task)}")
-            
             if task.status == "completed":
-                # Debug the results structure
-                print(f"DEBUG: Has 'results' attribute: {hasattr(task, 'results')}")
                 if hasattr(task, 'results'):
-                    print(f"DEBUG: Results object attributes: {dir(task.results)}")
-                    print(f"DEBUG: Results object type: {type(task.results)}")
-                    
-                    # Try different ways to access the answer
                     if hasattr(task.results, 'answer'):
                         report_content = task.results.answer
-                        print(f"DEBUG: Found answer via task.results.answer")
                     elif hasattr(task, 'answer'):
                         report_content = task.answer
-                        print(f"DEBUG: Found answer via task.answer")
                     elif isinstance(task.results, dict) and 'answer' in task.results:
                         report_content = task.results['answer']
-                        print(f"DEBUG: Found answer via task.results['answer']")
                     else:
-                        # Last resort: print the entire results object
-                        print(f"DEBUG: Full results object: {task.results}")
                         report_content = "Exa.ai Research Task completed, but could not locate the answer in the response."
                         st.warning(report_content)
                 else:
@@ -789,8 +724,6 @@ def generate_exa_research_report(query, timeout_seconds=180, polling_interval=5)
     except Exception as e:
         report_content = f"🚨 Error generating Exa.ai Research Report: {e}"
         st.error(report_content)
-        import traceback
-        print(f"TRACEBACK (Exa Research): {traceback.format_exc()}")
         
     return report_content
 
@@ -1193,31 +1126,42 @@ with st.sidebar:
         st.text_input("Folder Name", key="new_folder_name_input")
         st.button("Create", on_click=handle_create_folder)
 
-    folder_options = {"root": "All Items (Root)"}
+    # Add a "Select a folder" option for initial state
+    folder_options = {"None": "Select a folder to view..."}
+    folder_options.update({"root": "All Items (Root)"})
     folder_options.update({f["id"]: f["name"] for f in get_folders()})
 
     current_folder_keys = list(folder_options.keys())
-    try:
-        current_index = current_folder_keys.index(st.session_state.selected_folder_id)
-    except ValueError:
-        st.session_state.selected_folder_id = "root"
-        current_index = 0
+    
+    # Determine the initial index for the radio button
+    initial_radio_index = 0 # Default to "Select a folder to view..."
+    if st.session_state.selected_folder_id in folder_options:
+        initial_radio_index = current_folder_keys.index(st.session_state.selected_folder_id)
+    elif st.session_state.selected_folder_id == "root": # Ensure "root" is handled if it was the old default
+        initial_radio_index = current_folder_keys.index("root")
 
-    selected_folder_id = st.radio(
+
+    selected_folder_id_from_radio = st.radio(
         "View Folder:",
         options=current_folder_keys,
         format_func=lambda f_id: folder_options.get(f_id, "Invalid Folder"),
         key="folder_selector_radio",
-        index=current_index
+        index=initial_radio_index
     )
 
-    if selected_folder_id != st.session_state.selected_folder_id:
-        st.session_state.selected_folder_id = selected_folder_id
+    # Update session state only if a different option is selected
+    if selected_folder_id_from_radio != st.session_state.selected_folder_id:
+        if selected_folder_id_from_radio == "None":
+            st.session_state.selected_folder_id = None
+        else:
+            st.session_state.selected_folder_id = selected_folder_id_from_radio
         st.rerun()
 
-    if st.session_state.selected_folder_id != "root":
+    if st.session_state.selected_folder_id is not None and st.session_state.selected_folder_id != "None": # Ensure it's not the placeholder
         selected_folder_data = next((f for f in get_folders() if f['id'] == st.session_state.selected_folder_id), None)
-        if selected_folder_data:
+        if st.session_state.selected_folder_id == "root":
+            selected_folder_name = "All Items (Root)"
+        elif selected_folder_data:
              selected_folder_key = selected_folder_data.get('folder_key')
              selected_folder_name = selected_folder_data.get('name', 'this folder')
              if selected_folder_key:
@@ -1241,9 +1185,8 @@ with st.sidebar:
          st.session_state.messages = []
          st.rerun()
 
-    if not st.session_state.messages:
-         st.session_state.messages = load_chat_history(st.session_state.session_id)
-
+    # Chat history will only be loaded/displayed after the first message is sent
+    # or if a specific "Load History" button is added.
     history_container = st.container(height=300)
     with history_container:
         if st.session_state.messages:
@@ -1260,6 +1203,10 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 if prompt := st.chat_input("Enter your research topic or query..."):
+    # Load history only when a message is sent if it's currently empty
+    if not st.session_state.messages:
+        st.session_state.messages = load_chat_history(st.session_state.session_id)
+
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -1316,15 +1263,16 @@ if st.session_state.current_processed_results:
         source_type = result_data["source_type"]
         authors = result_data.get("authors", "")
         year = result_data.get("year", "")
+        # Corrected lines below:
         pdf_url = result_data.get("pdf_url")
         main_pub_url = result_data.get("main_pub_url")
         doi = result_data.get("doi", "")
         journal_name = result_data.get("journal_name", "")
-        volume = result_data.get("volume", "") # NEW
-        pages = result_data.get("pages", "")   # NEW
+        volume = result_data.get("volume", "")
+        pages = result_data.get("pages", "")
 
         summary = result_data.get("summary")
-        annotation = result_data.get("annotation")
+        annotation = result_data.get("annotation") # Corrected this line too
 
         with st.container(border=True):
             st.markdown(f"**[{title}]({url})**") 
@@ -1361,7 +1309,6 @@ if st.session_state.current_processed_results:
                 if st.button("📄 Summarize", key=f"summarize_{url}"):
                     with st.spinner("Preparing content for summary..."):
                         text_for_summary = content_snippet # Default fallback if all else fails
-                        text_source_info = "available snippet"
                         scraped_content = None
                         scrape_error = None
 
@@ -1382,25 +1329,19 @@ if st.session_state.current_processed_results:
                             current_attempt_url = attempt["url"]
                             current_attempt_type = attempt["type"]
 
-                            st.info(f"Attempting to scrape {current_attempt_type} from: {current_attempt_url}")
                             temp_scraped_content, temp_scrape_error = scrape_article_content(current_attempt_url)
 
                             if temp_scraped_content and len(temp_scraped_content) > 200: # Consider it successful if substantial content
                                 scraped_content = temp_scraped_content
                                 text_for_summary = scraped_content
-                                text_source_info = f"scraped {current_attempt_type} content"
-                                st.success(f"Successfully extracted text from {current_attempt_type}.")
                                 break # Stop trying if we got good content
                             else:
-                                st.warning(f"Could not extract substantial text from {current_attempt_type} ({current_attempt_url}): {temp_scrape_error or 'Content too short'}.")
                                 scrape_error = temp_scrape_error # Keep the last error for potential display
 
 
                         # Final check before proceeding with summary generation
                         if not scraped_content or len(text_for_summary) < 200:
-                            st.warning("Falling back to original snippet for summary as full content scraping failed or was too short.")
                             text_for_summary = content_snippet
-                            text_source_info = "available snippet"
                             if not text_for_summary:
                                 st.error("No content available to summarize (PDF, HTML, or snippet failed/empty).")
                                 continue
@@ -1484,21 +1425,17 @@ if st.session_state.current_processed_results:
                                 current_attempt_url = attempt["url"]
                                 current_attempt_type = attempt["type"]
 
-                                st.info(f"Attempting to scrape {current_attempt_type} for saving from: {current_attempt_url}")
                                 temp_scraped_content, temp_scrape_error = scrape_article_content(current_attempt_url)
 
                                 if temp_scraped_content and len(temp_scraped_content) > 200:
                                     scraped_content_for_save = temp_scraped_content
                                     text_to_summarize_for_save = scraped_content_for_save
-                                    st.success(f"Successfully extracted text from {current_attempt_type} for saving.")
                                     break
                                 else:
-                                    st.warning(f"Could not extract substantial text from {current_attempt_type} for saving ({current_attempt_url}): {temp_scrape_error or 'Content too short'}.")
                                     scrape_error_for_save = temp_scrape_error
 
 
                             if not scraped_content_for_save or len(text_to_summarize_for_save) < 200:
-                                st.warning("Falling back to original snippet for summary for saving as full content scraping failed or was too short.")
                                 text_to_summarize_for_save = content_snippet
                                 if not text_to_summarize_for_save:
                                     st.error("No content available to summarize for saving. Item not saved.")
@@ -1561,79 +1498,82 @@ if st.session_state.current_processed_results:
                     st.button("Close Citations", key=f"close_cite_search_{url}", on_click=lambda: st.session_state.pop(f"show_citations_search_{url}", None))
 
 
-# --- Display Library Items ---
-st.divider()
-st.subheader(f" L📂 Library Items in '{folder_options.get(st.session_state.selected_folder_id, 'Unknown Folder')}'")
+# --- Conditional Display of Library Items ---
+# This section will only appear if a folder is explicitly selected (i.e., not None or "None" placeholder)
+if st.session_state.selected_folder_id is not None and st.session_state.selected_folder_id != "None":
+    st.divider()
+    selected_folder_name_display = folder_options.get(st.session_state.selected_folder_id, 'Unknown Folder')
+    st.subheader(f" L📂 Library Items in '{selected_folder_name_display}'")
 
-library_items = get_library_items(st.session_state.selected_folder_id)
+    library_items = get_library_items(st.session_state.selected_folder_id)
 
-if not library_items:
-    st.info("No items found for this selection.")
-else:
-    for item in library_items:
-        item_key = item.get('item_key')
-        if not item_key: continue
+    if not library_items:
+        st.info("No items found for this selection.")
+    else:
+        for item in library_items:
+            item_key = item.get('item_key')
+            if not item_key: continue
 
-        with st.container(border=True):
-            st.markdown(f"**[{item.get('title', 'No Title')}]({item.get('url', '#')})**")
-            st.caption(f"Added: {item.get('added_timestamp', 'N/A').split('T')[0]} | Source: {item.get('source_type', 'N/A')}")
-            
-            author_year_info = []
-            if item.get('authors'):
-                author_year_info.append(f"Authors: {item['authors']}")
-            if item.get('year'):
-                author_year_info.append(f"Year: {item['year']}")
-            if author_year_info:
-                st.caption(" | ".join(author_year_info))
+            with st.container(border=True):
+                st.markdown(f"**[{item.get('title', 'No Title')}]({item.get('url', '#')})**")
+                st.caption(f"Added: {item.get('added_timestamp', 'N/A').split('T')[0]} | Source: {item.get('source_type', 'N/A')}")
+                
+                author_year_info = []
+                if item.get('authors'):
+                    author_year_info.append(f"Authors: {item['authors']}")
+                if item.get('year'):
+                    author_year_info.append(f"Year: {item['year']}")
+                if author_year_info:
+                    st.caption(" | ".join(author_year_info))
 
-            if item.get('journal_name'):
-                st.caption(f"Journal: {item['journal_name']}")
-            if item.get('volume'):
-                st.caption(f"Volume: {item['volume']}")
-            if item.get('pages'):
-                st.caption(f"Pages: {item['pages']}")
+                if item.get('journal_name'):
+                    st.caption(f"Journal: {item['journal_name']}")
+                if item.get('volume'):
+                    st.caption(f"Volume: {item['volume']}")
+                if item.get('pages'):
+                    st.caption(f"Pages: {item['pages']}")
 
-            if item.get('doi'):
-                st.caption(f"DOI: {item['doi']}")
+                if item.get('doi'):
+                    st.caption(f"DOI: {item['doi']}")
 
-            st.caption(f"Original Query: _{item.get('query', 'N/A')}_")
+                st.caption(f"Original Query: _{item.get('query', 'N/A')}_")
 
-            link_options = []
-            if item.get('main_pub_url') and item.get('url') != item.get('main_pub_url'):
-                link_options.append(f"[Main Article]({item['main_pub_url']})")
-            if item.get('pdf_url') and item.get('url') != item.get('pdf_url'):
-                link_options.append(f"[PDF]({item['pdf_url']})")
-            
-            if link_options:
-                st.markdown(" | ".join(link_options))
+                link_options = []
+                if item.get('main_pub_url') and item.get('url') != item.get('main_pub_url'):
+                    link_options.append(f"[Main Article]({item['main_pub_url']})")
+                if item.get('pdf_url') and item.get('url') != item.get('pdf_url'):
+                    link_options.append(f"[PDF]({item['pdf_url']})")
+                
+                if link_options:
+                    st.markdown(" | ".join(link_options))
 
-            if item.get('summary'):
-                with st.expander("Summary"):
-                    st.markdown(item['summary'])
-            if item.get('annotation'):
-                with st.expander("Annotation"):
-                    st.markdown(item['annotation'])
-            if item.get('content_snippet'):
-                with st.expander("Original Snippet/Abstract"):
-                    st.markdown(item['content_snippet'])
+                if item.get('summary'):
+                    with st.expander("Summary"):
+                        st.markdown(item['summary'])
+                if item.get('annotation'):
+                    with st.expander("Annotation"):
+                        st.markdown(item['annotation'])
+                if item.get('content_snippet'):
+                    with st.expander("Original Snippet/Abstract"):
+                        st.markdown(item['content_snippet'])
 
-            # Buttons for Library Items
-            lib_item_cols = st.columns([0.15, 0.85]) # Adjust column width for buttons
-            with lib_item_cols[0]:
-                if st.button("Cite", key=f"cite_library_{item_key}"):
-                    citations = generate_citations(item)
-                    st.session_state[f"show_citations_lib_{item_key}"] = citations
-            with lib_item_cols[1]:
-                if st.button("🗑️ Delete Item", key=f"delete_item_{item_key}", help="Permanently delete this item"):
-                    if st.checkbox(f"Confirm delete?", key=f"confirm_delete_item_{item_key}", value=False):
-                        delete_library_item(item_key)
-                        st.rerun()
+                # Buttons for Library Items
+                lib_item_cols = st.columns([0.15, 0.85]) # Adjust column width for buttons
+                with lib_item_cols[0]:
+                    if st.button("Cite", key=f"cite_library_{item_key}"):
+                        citations = generate_citations(item)
+                        st.session_state[f"show_citations_lib_{item_key}"] = citations
+                with lib_item_cols[1]:
+                    if st.button("🗑️ Delete Item", key=f"delete_item_{item_key}", help="Permanently delete this item"):
+                        if st.checkbox(f"Confirm delete?", key=f"confirm_delete_item_{item_key}", value=False):
+                            delete_library_item(item_key)
+                            st.rerun()
 
-            # Display citations if available for library item (NEW)
-            if st.session_state.get(f"show_citations_lib_{item_key}"):
-                with st.expander("View Citations", expanded=True):
-                    for style, citation_text in st.session_state[f"show_citations_lib_{item_key}"].items():
-                        st.markdown(f"**{style}** {citation_text}")
-                    # Removed st.rerun() here. The pop will trigger a rerun, which is sufficient.
-                    st.button("Close Citations", key=f"close_cite_lib_{item_key}", on_click=lambda: st.session_state.pop(f"show_citations_lib_{item_key}", None))
+                # Display citations if available for library item (NEW)
+                if st.session_state.get(f"show_citations_lib_{item_key}"):
+                    with st.expander("View Citations", expanded=True):
+                        for style, citation_text in st.session_state[f"show_citations_lib_{item_key}"].items():
+                            st.markdown(f"**{style}** {citation_text}")
+                        # Removed st.rerun() here. The pop will trigger a rerun, which is sufficient.
+                        st.button("Close Citations", key=f"close_cite_lib_{item_key}", on_click=lambda: st.session_state.pop(f"show_citations_lib_{item_key}", None))
 
