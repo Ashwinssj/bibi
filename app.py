@@ -1111,7 +1111,7 @@ def generate_citations(item):
 # --- Sidebar ---
 with st.sidebar:
     st.image("https://docs.streamlit.io/logo.svg", width=100)
-    st.header("Library & Settings")
+    st.header("Library")
     st.divider()
 
     # Folder Management
