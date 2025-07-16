@@ -10,6 +10,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from serpapi import GoogleSearch
 from exa_py import Exa
+from openai import OpenAI
 import re
 import requests
 from bs4 import BeautifulSoup
@@ -78,8 +79,14 @@ def configure_clients():
         # Configure SerpApi
         serpapi_client = GoogleSearch
 
-        # Configure Exa
+        # Configure Exa (for individual article search)
         exa_client = Exa(api_key=EXA_API_KEY)
+
+        # Configure OpenAI client for Exa Research API
+        openai_exa_client = OpenAI(
+            base_url="https://api.exa.ai",
+            api_key=EXA_API_KEY,
+        )
 
         # Configure Redis
         if not UPSTASH_REDIS_PORT or not UPSTASH_REDIS_PORT.isdigit():
@@ -96,7 +103,7 @@ def configure_clients():
         )
         redis_client.ping()
 
-        return gemini_model, tavily_client, redis_client, serpapi_client, exa_client, SCRAPERAPI_API_KEY 
+        return gemini_model, tavily_client, redis_client, serpapi_client, exa_client, openai_exa_client, SCRAPERAPI_API_KEY
 
     except redis.exceptions.ConnectionError as e:
         error_msg = f"🚨 Could not connect to Redis: {e}. Please verify connection details and Upstash instance status."
@@ -113,7 +120,7 @@ def configure_clients():
 
 
 # Initialize clients
-gemini_model, tavily_client, redis_client, serpapi_client, exa_client, SCRAPERAPI_API_KEY = configure_clients()
+gemini_model, tavily_client, redis_client, serpapi_client, exa_client, openai_exa_client, SCRAPERAPI_API_KEY = configure_clients()
 
 # --- Session State Initialization ---
 if "session_id" not in st.session_state:
@@ -422,7 +429,10 @@ def search_tavily(query, search_depth="basic", max_results=7):
         return [], str(e)
 
 def optimize_scholar_query(user_query):
-    """Uses Gemini to optimize a user's natural language query for Google Scholar."""
+    """Uses Gemini to optimize a user's natural language query into a concise, effective,
+    and keyword-rich search query suitable for academic databases like Google Scholar.
+    The output query will be a single string of keywords, without internal double quotes.
+    """
     prompt_template = f"""
     You are an AI research assistant. Your task is to rephrase a user's natural language research query into a concise, effective, and keyword-rich search query suitable for academic databases like Google Scholar.
 
@@ -431,19 +441,19 @@ def optimize_scholar_query(user_query):
     - Expanding abbreviations (e.g., "AI" to "Artificial Intelligence").
     - Removing conversational filler ("I want to research...", "articles about...").
     - Prioritizing academic terms.
-    - **Crucially, the output should be a space-separated list of keywords. If a phrase contains multiple words, put that specific phrase in double quotes (e.g., "deep learning"). Do NOT use commas to separate keywords in the output query.**
+    - **Crucially, the output should be a space-separated list of keywords. Do NOT enclose any individual phrases or keywords in double quotes in your output.** Do NOT use commas to separate keywords in the output query.
 
     Example 1:
     User Query: "i want to research Articles in AI"
-    Optimized Query: "Artificial Intelligence" research articles
+    Optimized Query: Artificial Intelligence research articles
 
     Example 2:
     User Query: "papers on climate change impact on agriculture"
-    Optimized Query: "climate change" agriculture impact papers
+    Optimized Query: climate change agriculture impact papers
 
     Example 3:
     User Query: "Machine learning with MCP model context protocol"
-    Optimized Query: "Machine Learning" "MCP model" "context protocol"
+    Optimized Query: Machine Learning MCP model context protocol
 
     User Query: "{user_query}"
     Optimized Query:
@@ -455,8 +465,8 @@ def optimize_scholar_query(user_query):
         return user_query
     
     optimized_query = optimized_query.strip()
-    if optimized_query.startswith('"') and optimized_query.endswith('"') and optimized_query.count('"') == 2:
-        optimized_query = optimized_query[1:-1]
+    # Remove any double quotes that the model might still generate despite instructions
+    optimized_query = optimized_query.replace('"', '')
     optimized_query = optimized_query.replace(',', ' ').strip()
     optimized_query = re.sub(r'\s+', ' ', optimized_query)
 
@@ -678,50 +688,30 @@ def search_exa(query, num_results=7):
     return exa_results, error
 
 
-def generate_exa_research_report(query, timeout_seconds=180, polling_interval=5):
+def generate_exa_research_report(openai_exa_client, query, message_placeholder):
     """
-    Generates a comprehensive research report using Exa.ai's research task API.
+    Generates a comprehensive research report using Exa.ai's research task API via OpenAI client.
     """
-    st.info(f"🔬 Initiating Exa.ai Research Task for: '{query}'")
+    st.info(f"🔬 Initiating Exa.ai Research Report generation for: '{query}' (streaming output)")
+    report_content = ""
     try:
-        task_stub = exa_client.research.create_task(
-            instructions=f"Provide a comprehensive, concise, and structured summary of the research topic: {query}",
+        completion = openai_exa_client.chat.completions.create(
             model="exa-research",
-            output_infer_schema=True
+            messages=[
+                {"role": "user", "content": f"Provide a comprehensive, concise, and structured summary of the research topic: {query}"}
+            ],
+            stream=True,
         )
-        st.info(f"Exa.ai research task created (ID: {task_stub.id}). Polling for results... This may take a moment.")
+
+        for chunk in completion:
+            if chunk.choices and chunk.choices[0].delta.content:
+                report_content += chunk.choices[0].delta.content
+                # Update the placeholder in real-time
+                message_placeholder.markdown(report_content + "▌") # Add a blinking cursor for visual feedback
         
-        start_time = time.time()
-        while True:
-            elapsed_time = time.time() - start_time
-            if elapsed_time > timeout_seconds:
-                return "⏳ Exa.ai Research Task timed out after 3 minutes. Please try again or refine your query."
-                
-            task = exa_client.research.poll_task(task_stub.id)
-            
-            if task.status == "completed":
-                if hasattr(task, 'results'):
-                    if hasattr(task.results, 'answer'):
-                        report_content = task.results.answer
-                    elif hasattr(task, 'answer'):
-                        report_content = task.answer
-                    elif isinstance(task.results, dict) and 'answer' in task.results:
-                        report_content = task.results['answer']
-                    else:
-                        report_content = "Exa.ai Research Task completed, but could not locate the answer in the response."
-                        st.warning(report_content)
-                else:
-                    report_content = "Exa.ai Research Task completed, but no results object was found."
-                    st.warning(report_content)
-                break
-            elif task.status in ["failed", "cancelled"]:
-                report_content = f"❌ Exa.ai Research Task {task.status}: {task.error or 'No error message provided.'}"
-                st.error(report_content)
-                break
-                
-            # Provide periodic feedback to the user
-            st.info(f"Task is still processing... ({int(elapsed_time)} seconds elapsed)")
-            time.sleep(polling_interval)
+        # Remove the blinking cursor at the end
+        message_placeholder.markdown(report_content)
+
     except Exception as e:
         report_content = f"🚨 Error generating Exa.ai Research Report: {e}"
         st.error(report_content)
@@ -729,7 +719,7 @@ def generate_exa_research_report(query, timeout_seconds=180, polling_interval=5)
     return report_content
 
 
-def perform_unified_search(query):
+def perform_unified_search(query, message_placeholder):
     """
     Performs search across Tavily, Google Scholar, and Exa.ai (search),
     and also initiates an Exa.ai research task.
@@ -741,7 +731,7 @@ def perform_unified_search(query):
     optimized_query = optimize_scholar_query(query)
 
     # 1. Search with Tavily (using optimized query and domain filter)
-    tavily_results, tavily_error = search_tavily(optimized_query) # NEW: Use optimized_query
+    tavily_results, tavily_error = search_tavily(optimized_query)
     if tavily_error:
         st.warning(f"Tavily search encountered an issue: {tavily_error}")
     for result in tavily_results:
@@ -762,8 +752,8 @@ def perform_unified_search(query):
                 "main_pub_url": "",
                 "doi": "",
                 "journal_name": "",
-                "volume": "", # NEW
-                "pages": ""   # NEW
+                "volume": "",
+                "pages": ""
             }
 
     # 2. Search with Google Scholar (already uses optimized query)
@@ -789,12 +779,12 @@ def perform_unified_search(query):
                 "main_pub_url": result.get('main_pub_url', existing_data.get('main_pub_url', '')),
                 "doi": result.get('doi', existing_data.get('doi', '')),
                 "journal_name": result.get('journal_name', existing_data.get('journal_name', '')),
-                "volume": result.get('volume', existing_data.get('volume', '')), # NEW
-                "pages": result.get('pages', existing_data.get('pages', ''))   # NEW
+                "volume": result.get('volume', existing_data.get('volume', '')),
+                "pages": result.get('pages', existing_data.get('pages', ''))
             }
 
     # 3. Search with Exa.ai (for individual articles/snippets, using optimized query and domain filter)
-    exa_search_results, exa_search_error = search_exa(optimized_query) # NEW: Use optimized_query
+    exa_search_results, exa_search_error = search_exa(optimized_query)
     if exa_search_error:
         st.warning(f"Exa.ai individual article search encountered an issue: {exa_search_error}")
     for result in exa_search_results:
@@ -816,13 +806,13 @@ def perform_unified_search(query):
                 "main_pub_url": result.get('main_pub_url', existing_data.get('main_pub_url', '')),
                 "doi": result.get('doi', existing_data.get('doi', '')),
                 "journal_name": result.get('journal_name', existing_data.get('journal_name', '')),
-                "volume": result.get('volume', existing_data.get('volume', '')), # NEW
-                "pages": result.get('pages', existing_data.get('pages', ''))   # NEW
+                "volume": result.get('volume', existing_data.get('volume', '')),
+                "pages": result.get('pages', existing_data.get('pages', ''))
             }
     
     # 4. Generate Exa.ai Research Report (separate, synthesized output, using original query)
     # The research task is a synthesis, so the original, broader query is often more suitable here.
-    exa_research_report = generate_exa_research_report(query) 
+    exa_research_report = generate_exa_research_report(openai_exa_client, query, message_placeholder)
 
     return list(all_processed_results.values()), exa_research_report
 
@@ -1182,6 +1172,17 @@ with st.sidebar:
 
     st.divider()
     st.subheader("💬 Chat History")
+
+    # NEW: Function to reset the session for new research
+    def start_new_research_session():
+        st.session_state.messages = []
+        st.session_state.current_processed_results = {}
+        # Optionally reset selected folder if desired, but not strictly necessary for search bar
+        # st.session_state.selected_folder_id = None
+        st.rerun()
+
+    st.button("✨ Start New Research", on_click=start_new_research_session, help="Clear current chat and results to start a new research query.")
+    
     if st.button("Clear Chat Display"):
          st.session_state.messages = []
          st.rerun()
@@ -1199,49 +1200,72 @@ with st.sidebar:
 
 # --- Main Content Area ---
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# Centered search bar for initial query if no chat messages exist
+if not st.session_state.messages:
+    # Add some vertical space to push the search bar down
+    st.markdown("<br><br><br><br><br><br><br>", unsafe_allow_html=True) 
+    col1, col2, col3 = st.columns([1, 3, 1]) # Use columns to center the input
+    with col2:
+        initial_query = st.text_input(
+            "Enter your research topic or query...",
+            key="initial_search_bar",
+            label_visibility="collapsed", # Hide the default label
+            placeholder="e.g., 'Impact of AI on healthcare patient engagement'"
+        )
+        if initial_query: # If user types something and presses Enter
+            # Simulate the chat input behavior and start the conversation
+            st.session_state.messages.append({"role": "user", "content": initial_query})
+            save_chat_message(st.session_state.session_id, "user", initial_query)
+            # Rerun the app to transition to the chat interface
+            st.rerun()
+    st.markdown("<br><br><br><br><br><br><br>", unsafe_allow_html=True) # Add more space below
+else:
+    # Existing chat display logic
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-if prompt := st.chat_input("Enter your research topic or query..."):
-    # Load history only when a message is sent if it's currently empty
-    if not st.session_state.messages:
-        st.session_state.messages = load_chat_history(st.session_state.session_id)
+    # Existing chat input logic (at the bottom)
+    if prompt := st.chat_input("Enter your research topic or query..."):
+        # Load history only when a message is sent if it's currently empty
+        if not st.session_state.messages:
+            st.session_state.messages = load_chat_history(st.session_state.session_id)
 
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-    save_chat_message(st.session_state.session_id, "user", prompt)
+        save_chat_message(st.session_state.session_id, "user", prompt)
 
-    with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        message_placeholder.markdown("🧠 Thinking... Searching across multiple sources (Tavily, Google Scholar, Exa.ai) and generating a research report...")
-        
-        st.session_state.current_processed_results = {}
+        with st.chat_message("assistant"):
+            message_placeholder = st.empty()
+            message_placeholder.markdown("🧠 Thinking... Searching across multiple sources (Tavily, Google Scholar, Exa.ai) and generating a research report...")
+            
+            st.session_state.current_processed_results = {}
 
-        combined_results, exa_research_report = perform_unified_search(prompt)
-        
-        response_content = ""
-        if combined_results:
-            for res in combined_results:
-                st.session_state.current_processed_results[res['url']] = res
+            # Pass the message_placeholder to perform_unified_search
+            combined_results, exa_research_report = perform_unified_search(prompt, message_placeholder) 
+            
+            # The message_placeholder has already been updated by generate_exa_research_report
+            # Now append the initial summary of results found.
+            final_response_prefix = ""
+            if combined_results:
+                for res in combined_results:
+                    st.session_state.current_processed_results[res['url']] = res
+                final_response_prefix = f"Found {len(combined_results)} potential sources for '{prompt}'. You can process them below."
+            else:
+                final_response_prefix = f"😕 Sorry, I couldn't find specific individual results for '{prompt}' from any source."
 
-            response_content += f"Found {len(combined_results)} potential sources for '{prompt}'. You can process them below."
-        else:
-            response_content += f"😕 Sorry, I couldn't find specific individual results for '{prompt}' from any source."
+            # Append the initial summary to the existing report content
+            full_assistant_response = f"{final_response_prefix}\n\n---\n\n**Exa.ai Research Report:**\n\n{exa_research_report}\n\n---"
+            
+            # Update the final message in the placeholder
+            message_placeholder.markdown(full_assistant_response)
 
-        response_content += "\n\n---\n\n**Exa.ai Research Report:**\n\n"
-        response_content += exa_research_report
-        response_content += "\n\n---\n"
-
-        message_placeholder.markdown(response_content)
-
-        st.session_state.messages.append({"role": "assistant", "content": response_content})
-        save_chat_message(st.session_state.session_id, "assistant", response_content)
-        
-        if combined_results:
-             st.rerun()
+            st.session_state.messages.append({"role": "assistant", "content": full_assistant_response})
+            save_chat_message(st.session_state.session_id, "assistant", full_assistant_response)
+            
+            # Removed redundant st.rerun() here. State updates will naturally trigger it.
 
 
 # --- Display Search Results for Processing ---
@@ -1273,7 +1297,7 @@ if st.session_state.current_processed_results:
         pages = result_data.get("pages", "")
 
         summary = result_data.get("summary")
-        annotation = result_data.get("annotation") # Corrected this line too
+        annotation = result_data.get("annotation")
 
         with st.container(border=True):
             st.markdown(f"**[{title}]({url})**") 
@@ -1476,8 +1500,8 @@ if st.session_state.current_processed_results:
                             pdf_url=pdf_url, main_pub_url=main_pub_url,
                             doi=doi,
                             journal_name=journal_name,
-                            volume=volume, # NEW
-                            pages=pages   # NEW
+                            volume=volume,
+                            pages=pages
                         )
                         if saved_item_key:
                              del st.session_state.current_processed_results[url]
