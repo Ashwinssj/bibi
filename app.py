@@ -684,14 +684,17 @@ def search_doaj(query, num_results=7):
     doaj_results = []
     error = None
     try:
-        st.info(f"🧠 Thinking... Searching DOAJ for articles matching: '{query}'")
+        st.info(f"🧠 Thinking... Searching DOAJ for articles matching: '{query}'") # Informative message
         
-        # The base URL is now directly the articles search endpoint
-        full_url = DOAJ_API_ARTICLES_URL
+        # URL-encode the query to handle spaces and special characters
+        encoded_query = requests.utils.quote(query)
         
-        # Pass the query as 'q' parameter, and pageSize for number of results
+        # Construct the URL with the query as a path parameter
+        full_url = f"{DOAJ_API_ARTICLES_URL}/{encoded_query}"
+        
+        # Parameters dictionary should contain query parameters like page and pageSize
         params = {
-            "q": query,
+            "page": 1, # Start from the first page as per curl example
             "pageSize": num_results
         }
         
@@ -797,12 +800,15 @@ def search_doaj_journals(query, num_results=7):
     doaj_journal_results = []
     error = None
     try:
-        st.info(f"🧠 Thinking... Searching DOAJ for journals matching: '{query}'")
+        st.info(f"🧠 Thinking... Searching DOAJ for journals matching: '{query}'") # Informative message
         
-        full_url = DOAJ_API_JOURNALS_URL
+        # URL-encode the query to handle spaces and special characters
+        encoded_query = requests.utils.quote(query)
         
+        # Construct the URL with the query as a path parameter
+        full_url = f"{DOAJ_API_JOURNALS_URL}/{encoded_query}"
         params = {
-            "q": query,
+            "page": 1, # Start from the first page as per curl example
             "pageSize": num_results
         }
         
@@ -1616,7 +1622,7 @@ if st.session_state.current_processed_results:
 
                         for attempt in urls_to_try:
                             current_attempt_url = attempt["url"]
-                            current_attempt_type = attempt["url"] # This was a typo, should be attempt["type"]
+                            current_attempt_type = attempt["type"] 
 
                             temp_scraped_content, temp_scrape_error = scrape_article_content(current_attempt_url)
 
@@ -1658,7 +1664,7 @@ if st.session_state.current_processed_results:
 
             # Access Button (formerly Annotate)
             with action_cols[1]:
-                can_access = summary is not None and not is_journal_entry
+                can_access = summary is not None and not is_journal_entry # Disable if journal
                 if st.button("Access", key=f"access_{url}", disabled=not can_access):
                     if is_journal_entry:
                         st.warning("Annotation is not applicable for journal entries.")
