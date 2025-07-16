@@ -36,8 +36,12 @@ ACADEMIC_DOMAINS = [
     "nature.com", "science.org", "frontiersin.org", "plos.org",
     "bmj.com", "jamanetwork.com", "nejm.org", "arxiv.org", "biorxiv.org",
     "jstor.org", "cambridge.org", "oup.com", "tandfonline.com",
-    "researchgate.net", "academia.edu" # These are academic social networks, but often host papers
+    "researchgate.net", "academia.edu", "doaj.org" # Added DOAJ to academic domains
 ]
+
+# Corrected: DOAJ API Base URL for articles search
+DOAJ_API_ARTICLES_URL = "https://doaj.org/api/v2/search/articles" # Global constant for articles
+DOAJ_API_JOURNALS_URL = "https://doaj.org/api/v2/search/journals" # Global constant for journals
 
 
 # API Keys and Clients Setup
@@ -216,7 +220,7 @@ def delete_folder(folder_key):
         st.error(f"Error deleting folder: {e}")
 
 # Library Items
-def save_library_item(title, url, query, source_type, folder_id="root", summary="", annotation="", content_snippet="", authors="", year="", pdf_url="", main_pub_url="", doi="", journal_name="", volume="", pages=""):
+def save_library_item(title, url, query, source_type, folder_id="root", summary="", annotation="", content_snippet="", authors="", year="", pdf_url="", main_pub_url="", doi="", journal_name="", volume="", pages="", publisher="", issn=""):
     """Saves a library item to Redis."""
     item_uuid = str(uuid.uuid4())
     item_key = f"{ITEM_PREFIX}{item_uuid}"
@@ -238,8 +242,10 @@ def save_library_item(title, url, query, source_type, folder_id="root", summary=
         "main_pub_url": main_pub_url or "",
         "doi": doi or "",
         "journal_name": journal_name or "",
-        "volume": volume or "", # NEW
-        "pages": pages or ""   # NEW
+        "volume": volume or "",
+        "pages": pages or "",
+        "publisher": publisher or "", # NEW
+        "issn": issn or "" # NEW
     }
     try:
         with redis_client.pipeline() as pipe:
@@ -307,7 +313,7 @@ def delete_library_item(item_key):
         st.error(f"Error deleting item: {e}")
 
 # Chat History
-def save_chat_message(session_id, role, content):
+def save_chat_message(session_id: str, role: str, content: str):
     """Appends a chat message to the Redis list for the session."""
     key = f"{CHAT_HISTORY_KEY_PREFIX}{session_id}"
     message = json.dumps({"role": role, "content": content})
@@ -316,7 +322,7 @@ def save_chat_message(session_id, role, content):
         redis_client.ltrim(key, -100, -1)
     except Exception as e:
         st.warning(f"Could not save chat message to Redis: {e}")
-
+    
 def load_chat_history(session_id):
     """Loads chat history for the session from Redis."""
     key = f"{CHAT_HISTORY_KEY_PREFIX}{session_id}"
@@ -478,22 +484,15 @@ def search_google_scholar(query, num_results=7):
     scholar_results = []
     error = None
     
-    api_key = os.getenv("SERPAPI_API_KEY")
-    if not api_key:
-        error = "SERPAPI_API_KEY environment variable is not set"
-        st.error(error)
-        return [], error
-    
     params = {
         "engine": "google_scholar",
         "q": query,
         "num": num_results,
-        "api_key": api_key
+        "api_key": os.getenv("SERPAPI_API_KEY")
     }
 
     try:
         st.info(f"Searching Google Scholar for: '{query}'")
-
         search = GoogleSearch(params)
         results_json = search.get_dict()
         
@@ -507,7 +506,6 @@ def search_google_scholar(query, num_results=7):
             st.error(f"SerpApi Error: {error}")
             return [], error
 
-        # FIX: Changed 'results' to 'results_json'
         search_metadata = results_json.get('search_metadata', {}) 
         if search_metadata.get('status') != 'Success':
             error = f"Search not successful. Status: {search_metadata.get('status')}"
@@ -532,8 +530,8 @@ def search_google_scholar(query, num_results=7):
             journal_name = ""
             authors = ""
             year = ""
-            volume = "" # NEW
-            pages = ""  # NEW
+            volume = ""
+            pages = ""
 
             if 'resources' in result:
                 for resource in result['resources']:
@@ -557,41 +555,36 @@ def search_google_scholar(query, num_results=7):
                 if author_match:
                     authors = author_match.group(1).strip()
                 
-                # Extract year
+                # Extract year (e.g., "2017")
                 year_match = re.search(r'\b(\d{4})\b', pub_summary)
                 if year_match:
                     year = year_match.group(1)
                 
-                # Extract journal, volume, pages
-                # Example: "P. Hamet, J. Tremblay - Metabolism - Clinical and Experimental, 2017, 69, S36-S40"
-                # Example: "Nature, 2017, 541(7635), 1-10"
-                # Example: "Journal of Science, 2020"
+                # Try to extract volume and pages from the summary (e.g., "69, S36-S40" or "541(7635), 1-10")
+                # Pattern: (volume)(optional sub-volume)(optional comma/space/colon)(pages)
+                # This regex aims to capture:
+                # 1. Volume (e.g., 69 or 135)
+                # 2. Optional sub-volume (e.g., (1))
+                # 3. Pages (e.g., S36-S40 or 1-10)
                 
                 # Remove author part if present to simplify parsing the rest
                 temp_summary_for_parsing = pub_summary
                 if authors:
                     temp_summary_for_parsing = temp_summary_for_parsing.replace(authors, '', 1).strip(' -').strip(',')
                 
-                # Try to extract volume and pages from the summary
-                # Pattern: (volume)(optional sub-volume)(optional comma/space/colon)(pages)
-                # This regex aims to capture:
-                # 1. Volume (e.g., 69 or 135)
-                # 2. Optional sub-volume (e.g., (1))
-                # 3. Pages (e.g., S36-S40 or 1-10)
                 vol_pages_match = re.search(r'(\d+)(?:\((\d+)\))?(?:,\s*|:\s*|\s*)(S?\d+-\d+|\d+-\d+)', temp_summary_for_parsing)
                 if vol_pages_match:
                     volume = vol_pages_match.group(1)
-                    pages = vol_pages_match.group(3) # Group 3 captures the pages (S36-S40 or 1-10)
+                    pages = vol_pages_match.group(3) # Group 3 captures the pages (e.g., S36-S40 or 1-10)
                 else: # Try just volume if no pages
                     vol_match = re.search(r'\b(\d+)\b', temp_summary_for_parsing)
                     if vol_match and vol_match.group(1) != year: # Ensure it's not the year itself
                         volume = vol_match.group(1)
 
                 # Extract journal name:
-                # It's usually the part between authors and the year/volume/pages info
+                # It's usually the part between authors and the year/volume/pages info.
                 journal_candidate = temp_summary_for_parsing
-                if year:
-                    journal_candidate = journal_candidate.replace(year, '', 1).strip(',').strip()
+                journal_candidate = re.sub(r'\b\d{4}\b', '', journal_candidate).strip(',').strip() # Remove year
                 if volume:
                     journal_candidate = journal_candidate.replace(volume, '', 1).strip(',').strip()
                 if pages:
@@ -618,8 +611,8 @@ def search_google_scholar(query, num_results=7):
                     "year": year,
                     "doi": doi,
                     "journal_name": journal_name,
-                    "volume": volume, # NEW
-                    "pages": pages   # NEW
+                    "volume": volume,
+                    "pages": pages
                 })
             else:
                 st.warning(f"Skipping a Google Scholar result due to missing URL: {title}")
@@ -673,19 +666,209 @@ def search_exa(query, num_results=7):
                         "main_pub_url": url,
                         "doi": "",
                         "journal_name": "",
-                        "volume": volume, # NEW
-                        "pages": pages   # NEW
+                        "volume": volume,
+                        "pages": pages
                     })
                 else:
                     st.warning(f"Skipping an Exa.ai search result due to missing URL: {title}")
-        else:
-            st.info("No individual articles found from Exa.ai search.")
 
     except Exception as e:
         error = f"Exa.ai search failed: {e}"
         st.error(error)
     
     return exa_results, error
+
+# Corrected DOAJ Search Function
+def search_doaj(query, num_results=7):
+    """Performs an article search using the DOAJ API, passing query as 'q' parameter."""
+    doaj_results = []
+    error = None
+    try:
+        st.info(f"🧠 Thinking... Searching DOAJ for articles matching: '{query}'")
+        
+        # The base URL is now directly the articles search endpoint
+        full_url = DOAJ_API_ARTICLES_URL
+        
+        # Pass the query as 'q' parameter, and pageSize for number of results
+        params = {
+            "q": query,
+            "pageSize": num_results
+        }
+        
+        response = requests.get(full_url, params=params, timeout=15)
+        response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
+        
+        data = response.json()
+        
+        if data.get('results'):
+            for result in data['results']:
+                bibjson = result.get('bibjson', {})
+                
+                title = bibjson.get('title', 'No Title')
+                
+                # Try to find a fulltext HTML link, then PDF, then any link
+                url = None # This will be the primary URL for the item
+                pdf_url = None
+                main_pub_url = None
+
+                links = bibjson.get('link', [])
+                for link in links:
+                    if link.get('type') == 'fulltext' and link.get('url'):
+                        url = link['url']
+                        main_pub_url = link['url'] # Assume fulltext is main publication URL
+                    if link.get('type') == 'pdf' and link.get('url'):
+                        pdf_url = link['url']
+                
+                # If no specific fulltext or PDF URL found, take the first available link
+                if not url and links:
+                    url = links[0].get('url')
+                    if not main_pub_url:
+                        main_pub_url = url
+
+                authors_list = bibjson.get('author', [])
+                authors = ", ".join([a.get('name', '') for a in authors_list if a.get('name')])
+                
+                # Year can be at bibjson level or inside journal info
+                year = bibjson.get('year', '')
+                journal_info = bibjson.get('journal', {})
+                journal_name = journal_info.get('title', '')
+                volume = journal_info.get('volume', '')
+
+                # Pages from start_page and end_page
+                pages = ""
+                start_page = bibjson.get('start_page')
+                end_page = bibjson.get('end_page')
+
+                if start_page is not None and end_page is not None:
+                    pages = f"{start_page}-{end_page}"
+                elif start_page is not None:
+                    pages = str(start_page)
+                elif end_page is not None:
+                    pages = str(end_page)
+                
+                # Ensure year is string
+                year = str(year) if year else ""
+                
+                doi_identifiers = [i.get('id') for i in bibjson.get('identifier', []) if i.get('type') == 'doi']
+                doi = doi_identifiers[0] if doi_identifiers else ''
+
+                # DOAJ search results typically don't include snippets or abstracts directly.
+                # We can try to get the abstract from the bibjson if present, though it's rare in search results.
+                content_snippet = bibjson.get('abstract', 'No abstract available from DOAJ search result.')
+                if not content_snippet or len(content_snippet) < 50:
+                    content_snippet = 'No snippet available from DOAJ search result.'
+
+
+                if url:
+                    doaj_results.append({
+                        "title": title,
+                        "url": url,
+                        "pdf_url": pdf_url,
+                        "main_pub_url": main_pub_url,
+                        "content_snippet": content_snippet,
+                        "source_type": "DOAJ Article",
+                        "query": query,
+                        "authors": authors,
+                        "year": year,
+                        "doi": doi,
+                        "journal_name": journal_name,
+                        "volume": volume,
+                        "pages": pages
+                    })
+                else:
+                    st.warning(f"Skipping a DOAJ result due to missing URL: {title}")
+        else:
+            st.info("No articles found from DOAJ search.")
+
+    except requests.exceptions.RequestException as e:
+        error = f"DOAJ API request failed: {e}"
+        st.error(error)
+    except json.JSONDecodeError:
+        error = "Failed to parse JSON response from DOAJ API."
+        st.error(error)
+    except Exception as e:
+        error = f"An unexpected error occurred during DOAJ search: {e}"
+        st.error(error)
+    
+    return doaj_results, error
+
+def search_doaj_journals(query, num_results=7):
+    """Performs a journal search using the DOAJ API."""
+    doaj_journal_results = []
+    error = None
+    try:
+        st.info(f"🧠 Thinking... Searching DOAJ for journals matching: '{query}'")
+        
+        full_url = DOAJ_API_JOURNALS_URL
+        
+        params = {
+            "q": query,
+            "pageSize": num_results
+        }
+        
+        response = requests.get(full_url, params=params, timeout=15)
+        response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
+        
+        data = response.json()
+        
+        if data.get('results'):
+            for result in data['results']:
+                bibjson = result.get('bibjson', {})
+                
+                title = bibjson.get('title', 'No Title')
+                publisher = bibjson.get('publisher', '')
+                
+                issns = []
+                for identifier in bibjson.get('identifier', []):
+                    if identifier.get('type') in ['pissn', 'eissn'] and identifier.get('id'):
+                        issns.append(identifier['id'])
+                issn = ", ".join(issns) if issns else ""
+
+                journal_url = None
+                links = bibjson.get('link', [])
+                for link in links:
+                    if link.get('type') == 'homepage' and link.get('url'):
+                        journal_url = link['url']
+                        break
+                
+                # Content snippet for a journal could be its keywords or a general description
+                keywords = bibjson.get('keywords', [])
+                content_snippet = f"Keywords: {', '.join(keywords)}" if keywords else "No detailed description available for this journal."
+
+                if journal_url:
+                    doaj_journal_results.append({
+                        "title": title,
+                        "url": journal_url,
+                        "pdf_url": "", # Not applicable for journal entry
+                        "main_pub_url": journal_url,
+                        "content_snippet": content_snippet,
+                        "source_type": "DOAJ Journal", # Specific source type for journals
+                        "query": query,
+                        "authors": "", # Not applicable for journal entry
+                        "year": "", # Not applicable for journal entry
+                        "doi": "", # Not applicable for journal entry
+                        "journal_name": title, # Journal title is the title of the entry
+                        "volume": "", # Not applicable for journal entry
+                        "pages": "", # Not applicable for journal entry
+                        "publisher": publisher, # New field for journals
+                        "issn": issn # New field for journals
+                    })
+                else:
+                    st.warning(f"Skipping a DOAJ journal result due to missing homepage URL: {title}")
+        else:
+            st.info("No journals found from DOAJ search.")
+
+    except requests.exceptions.RequestException as e:
+        error = f"DOAJ Journal API request failed: {e}"
+        st.error(error)
+    except json.JSONDecodeError:
+        error = "Failed to parse JSON response from DOAJ Journal API."
+        st.error(error)
+    except Exception as e:
+        error = f"An unexpected error occurred during DOAJ journal search: {e}"
+        st.error(error)
+    
+    return doaj_journal_results, error
 
 
 def generate_exa_research_report(openai_exa_client, query, message_placeholder):
@@ -721,12 +904,12 @@ def generate_exa_research_report(openai_exa_client, query, message_placeholder):
 
 def perform_unified_search(query, message_placeholder):
     """
-    Performs search across Tavily, Google Scholar, and Exa.ai (search),
+    Performs search across Tavily, Google Scholar, Exa.ai (search), and DOAJ,
     and also initiates an Exa.ai research task.
-    Returns merged individual results and the Exa.ai research report.
+    Returns merged individual results (articles and journals) and the Exa.ai research report.
     """
     all_processed_results = {}
-
+    
     # Optimize the query once for all search engines
     optimized_query = optimize_scholar_query(query)
 
@@ -753,7 +936,9 @@ def perform_unified_search(query, message_placeholder):
                 "doi": "",
                 "journal_name": "",
                 "volume": "",
-                "pages": ""
+                "pages": "",
+                "publisher": "", # Default for non-journal entries
+                "issn": "" # Default for non-journal entries
             }
 
     # 2. Search with Google Scholar (already uses optimized query)
@@ -780,7 +965,9 @@ def perform_unified_search(query, message_placeholder):
                 "doi": result.get('doi', existing_data.get('doi', '')),
                 "journal_name": result.get('journal_name', existing_data.get('journal_name', '')),
                 "volume": result.get('volume', existing_data.get('volume', '')),
-                "pages": result.get('pages', existing_data.get('pages', ''))
+                "pages": result.get('pages', existing_data.get('pages', '')),
+                "publisher": "", # Default for articles
+                "issn": "" # Default for articles
             }
 
     # 3. Search with Exa.ai (for individual articles/snippets, using optimized query and domain filter)
@@ -806,11 +993,70 @@ def perform_unified_search(query, message_placeholder):
                 "main_pub_url": result.get('main_pub_url', existing_data.get('main_pub_url', '')),
                 "doi": result.get('doi', existing_data.get('doi', '')),
                 "journal_name": result.get('journal_name', existing_data.get('journal_name', '')),
+                "volume": result.get('volume', existing_data.get('volume', '')), 
+                "pages": result.get('pages', existing_data.get('pages', '')),
+                "publisher": "", # Default for articles
+                "issn": "" # Default for articles
+            }
+
+    # 4. Search with DOAJ Articles (using corrected method)
+    doaj_search_results, doaj_search_error = search_doaj(optimized_query)
+    if doaj_search_error:
+        st.warning(f"DOAJ article search encountered an issue: {doaj_search_error}")
+    for result in doaj_search_results:
+        url = result.get('url')
+        if url:
+            existing_data = all_processed_results.get(url, {})
+            all_processed_results[url] = {
+                "title": result.get('title', existing_data.get('title', 'No Title')),
+                "url": url,
+                "content_snippet": result.get('content_snippet') if len(result.get('content_snippet', '')) > len(existing_data.get('content_snippet', '')) else existing_data.get('content_snippet', 'No snippet available.'),
+                "source_type": result.get('source_type', existing_data.get('source_type', 'Website')),
+                "query": query,
+                "optimized_query": optimized_query,
+                "summary": existing_data.get('summary'),
+                "annotation": existing_data.get('annotation'),
+                "authors": result.get('authors', existing_data.get('authors', '')),
+                "year": result.get('year', existing_data.get('year', '')),
+                "pdf_url": result.get('pdf_url', existing_data.get('pdf_url', '')),
+                "main_pub_url": result.get('main_pub_url', existing_data.get('main_pub_url', '')),
+                "doi": result.get('doi', existing_data.get('doi', '')),
+                "journal_name": result.get('journal_name', existing_data.get('journal_name', '')),
                 "volume": result.get('volume', existing_data.get('volume', '')),
-                "pages": result.get('pages', existing_data.get('pages', ''))
+                "pages": result.get('pages', existing_data.get('pages', '')),
+                "publisher": "", # Default for articles
+                "issn": "" # Default for articles
             }
     
-    # 4. Generate Exa.ai Research Report (separate, synthesized output, using original query)
+    # NEW: 5. Search with DOAJ Journals
+    doaj_journal_search_results, doaj_journal_search_error = search_doaj_journals(optimized_query)
+    if doaj_journal_search_error:
+        st.warning(f"DOAJ journal search encountered an issue: {doaj_journal_search_error}")
+    for result in doaj_journal_search_results:
+        url = result.get('url')
+        if url:
+            existing_data = all_processed_results.get(url, {})
+            all_processed_results[url] = {
+                "title": result.get('title', existing_data.get('title', 'No Title')),
+                "url": url,
+                "content_snippet": result.get('content_snippet', existing_data.get('content_snippet', 'No snippet available.')),
+                "source_type": result.get('source_type', existing_data.get('source_type', 'Website')), # This will be "DOAJ Journal"
+                "query": query,
+                "optimized_query": optimized_query,
+                "summary": existing_data.get('summary'), # Will be None for journals
+                "annotation": existing_data.get('annotation'), # Will be None for journals
+                "authors": result.get('authors', existing_data.get('authors', '')), # Empty for journals
+                "year": result.get('year', existing_data.get('year', '')), # Empty for journals
+                "pdf_url": result.get('pdf_url', existing_data.get('pdf_url', '')), # Empty for journals
+                "main_pub_url": result.get('main_pub_url', existing_data.get('main_pub_url', '')), # Journal homepage
+                "doi": result.get('doi', existing_data.get('doi', '')), # Empty for journals
+                "journal_name": result.get('journal_name', existing_data.get('journal_name', '')), # Journal title
+                "volume": result.get('volume', existing_data.get('volume', '')), # Empty for journals
+                "pages": result.get('pages', existing_data.get('pages', '')), # Empty for journals
+                "publisher": result.get('publisher', existing_data.get('publisher', '')), # NEW
+                "issn": result.get('issn', existing_data.get('issn', '')), # NEW
+            }
+    # 5. Generate Exa.ai Research Report (separate, synthesized output, using original query)
     # The research task is a synthesis, so the original, broader query is often more suitable here.
     exa_research_report = generate_exa_research_report(openai_exa_client, query, message_placeholder)
 
@@ -1102,7 +1348,7 @@ def generate_citations(item):
 # --- Sidebar ---
 with st.sidebar:
     st.image("https://docs.streamlit.io/logo.svg", width=100)
-    st.header("Library & Settings")
+    st.header("My library")
     st.divider()
 
     # Folder Management
@@ -1214,7 +1460,7 @@ if not st.session_state.messages:
     col1, col2, col3 = st.columns([1, 3, 1]) # Use columns to center the input
     with col2:
         initial_query = st.text_input(
-            "", # Label is empty as per image, placeholder acts as label
+            "Search for articles or journals", # Provide a non-empty label for accessibility
             key="initial_search_bar",
             label_visibility="collapsed", # Hide the default label
             placeholder="Ask anything", # Text inside the search bar
@@ -1248,7 +1494,7 @@ else:
 
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
-            message_placeholder.markdown("🧠 Thinking... Searching across multiple sources (Tavily, Google Scholar, Exa.ai) and generating a research report...")
+            message_placeholder.markdown("🧠 Thinking... Searching across multiple sources (Tavily, Google Scholar, Exa.ai, DOAJ) and generating a research report...") # Updated message
             
             st.session_state.current_processed_results = {}
 
@@ -1302,6 +1548,8 @@ if st.session_state.current_processed_results:
         journal_name = result_data.get("journal_name", "")
         volume = result_data.get("volume", "")
         pages = result_data.get("pages", "")
+        publisher = result_data.get("publisher", "") # NEW
+        issn = result_data.get("issn", "") # NEW
 
         summary = result_data.get("summary")
         annotation = result_data.get("annotation")
@@ -1321,6 +1569,10 @@ if st.session_state.current_processed_results:
                 st.caption(f"Volume: {volume}")
             if pages:
                 st.caption(f"Pages: {pages}")
+            if publisher: # NEW
+                st.caption(f"Publisher: {publisher}")
+            if issn: # NEW
+                st.caption(f"ISSN: {issn}")
             
             link_options = []
             if main_pub_url and url != main_pub_url:
@@ -1336,9 +1588,14 @@ if st.session_state.current_processed_results:
             # Adjusted columns for Summarize, Access, Cite, Save
             action_cols = st.columns([0.2, 0.2, 0.2, 0.4])
 
+            is_journal_entry = (source_type == "DOAJ Journal")
+
             # Summarize Button
             with action_cols[0]:
-                if st.button("📄 Summarize", key=f"summarize_{url}"):
+                if st.button("📄 Summarize", key=f"summarize_{url}", disabled=is_journal_entry):
+                    if is_journal_entry:
+                        st.warning("Summarization is not applicable for journal entries.")
+                        continue
                     with st.spinner("Preparing content for summary..."):
                         text_for_summary = content_snippet # Default fallback if all else fails
                         scraped_content = None
@@ -1359,7 +1616,7 @@ if st.session_state.current_processed_results:
 
                         for attempt in urls_to_try:
                             current_attempt_url = attempt["url"]
-                            current_attempt_type = attempt["type"]
+                            current_attempt_type = attempt["url"] # This was a typo, should be attempt["type"]
 
                             temp_scraped_content, temp_scrape_error = scrape_article_content(current_attempt_url)
 
@@ -1401,9 +1658,12 @@ if st.session_state.current_processed_results:
 
             # Access Button (formerly Annotate)
             with action_cols[1]:
-                can_access = summary is not None
+                can_access = summary is not None and not is_journal_entry
                 if st.button("Access", key=f"access_{url}", disabled=not can_access):
-                    if can_access:
+                    if is_journal_entry:
+                        st.warning("Annotation is not applicable for journal entries.")
+                        continue
+                    elif can_access:
                         with st.spinner("Generating annotation..."):
                             prompt_ann = generate_annotation_prompt(title, url, optimized_query, summary, authors, year)
                             generated_annotation, error = generate_gemini(prompt_ann)
@@ -1435,7 +1695,7 @@ if st.session_state.current_processed_results:
                     current_annotation = result_data.get("annotation")
 
                     with st.spinner("Saving..."):
-                        if not current_summary:
+                        if not current_summary and not is_journal_entry: # Only attempt summary if not a journal and no summary exists
                             st.info("Generating summary before saving...")
                             
                             text_to_summarize_for_save = content_snippet # Default fallback
@@ -1470,27 +1730,30 @@ if st.session_state.current_processed_results:
                             if not scraped_content_for_save or len(text_to_summarize_for_save) < 200:
                                 text_to_summarize_for_save = content_snippet
                                 if not text_to_summarize_for_save:
-                                    st.error("No content available to summarize for saving. Item not saved.")
-                                    continue
+                                    if not is_journal_entry: # Only warn if it's an article/website, not a journal
+                                        st.error("No content available to summarize for saving. Item not saved.")
+                                        continue
+                                    else: # For journals, summary is not expected
+                                        current_summary = ""
+                                else:
+                                    # --- Attempt Structured Summary for Save ---
+                                    # The prompt itself is now expected to provide a general summary if structured fails.
+                                    prompt_structured_sum = generate_structured_summary_prompt(
+                                        title=title, authors=authors, year=year,
+                                        journal_name=journal_name, doi=doi,
+                                        content_to_summarize=text_to_summarize_for_save,
+                                        url=url
+                                    )
+                                    current_summary, error_structured_save = generate_gemini(prompt_structured_sum)
 
-                            # --- Attempt Structured Summary for Save ---
-                            # The prompt itself is now expected to provide a general summary if structured fails.
-                            prompt_structured_sum = generate_structured_summary_prompt(
-                                title=title, authors=authors, year=year,
-                                journal_name=journal_name, doi=doi,
-                                content_to_summarize=text_to_summarize_for_save,
-                                url=url
-                            )
-                            current_summary, error_structured_save = generate_gemini(prompt_structured_sum)
-
-                            if error_structured_save or not current_summary:
-                                st.error(f"Summary generation failed for saving: {error_structured_save}. Item not saved.")
-                                continue
-                            
-                            st.session_state.current_processed_results[url]["summary"] = current_summary
+                                    if error_structured_save or not current_summary:
+                                        st.error(f"Summary generation failed for saving: {error_structured_save}. Item not saved.")
+                                        continue
+                                    
+                                    st.session_state.current_processed_results[url]["summary"] = current_summary
 
 
-                        if not current_annotation and current_summary:
+                        if not current_annotation and current_summary and not is_journal_entry: # Only attempt annotation if not a journal and summary exists
                             st.info("Generating annotation before saving...")
                             prompt_ann = generate_annotation_prompt(title, url, optimized_query, current_summary, authors, year)
                             current_annotation, error_ann = generate_gemini(prompt_ann)
@@ -1498,6 +1761,8 @@ if st.session_state.current_processed_results:
                                 st.warning("Failed to generate annotation, saving without it.")
                                 current_annotation = ""
                             st.session_state.current_processed_results[url]["annotation"] = current_annotation
+                        elif is_journal_entry:
+                            current_annotation = "" # Ensure annotation is empty for journals
 
                         saved_item_key = save_library_item(
                             title=title, url=url, query=query, source_type=source_type,
@@ -1508,7 +1773,9 @@ if st.session_state.current_processed_results:
                             doi=doi,
                             journal_name=journal_name,
                             volume=volume,
-                            pages=pages
+                            pages=pages,
+                            publisher=publisher, # NEW
+                            issn=issn # NEW
                         )
                         if saved_item_key:
                              del st.session_state.current_processed_results[url]
@@ -1565,6 +1832,10 @@ if st.session_state.selected_folder_id is not None and st.session_state.selected
                 if item.get('pages'):
                     st.caption(f"Pages: {item['pages']}")
 
+                if item.get('publisher'): # NEW
+                    st.caption(f"Publisher: {item['publisher']}")
+                if item.get('issn'): # NEW
+                    st.caption(f"ISSN: {item['issn']}")
                 if item.get('doi'):
                     st.caption(f"DOI: {item['doi']}")
 
