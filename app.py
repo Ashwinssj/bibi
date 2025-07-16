@@ -128,7 +128,7 @@ if "session_id" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = [] # Initialize empty, history loaded on demand or after first message
 if "current_tavily_results" not in st.session_state:
-    st.session_state.current_tavily_results = []
+    st.session_state.current_tavily_results = {} # Changed to dict for easier lookup
 if "current_processed_results" not in st.session_state:
     st.session_state.current_processed_results = {}
 if "selected_folder_id" not in st.session_state:
@@ -1173,7 +1173,7 @@ with st.sidebar:
     st.divider()
     st.subheader("💬 Chat History")
 
-    # NEW: Function to reset the session for new research
+    # Function to reset the session for new research
     def start_new_research_session():
         st.session_state.messages = []
         st.session_state.current_processed_results = {}
@@ -1202,15 +1202,22 @@ with st.sidebar:
 
 # Centered search bar for initial query if no chat messages exist
 if not st.session_state.messages:
-    # Add some vertical space to push the search bar down
+    # Add vertical space to push content down
+    # Using multiple <br> for more precise visual spacing as per image
     st.markdown("<br><br><br><br><br><br><br>", unsafe_allow_html=True) 
+
+    # Centered "What can I help with?" text
+    # Added inline style for color to ensure visibility on dark background
+    st.markdown("<h2 style='text-align: center; color: white;'>What can I help with?</h2>", unsafe_allow_html=True)
+
+    # Centered text input
     col1, col2, col3 = st.columns([1, 3, 1]) # Use columns to center the input
     with col2:
         initial_query = st.text_input(
-            "Enter your research topic or query...",
+            "", # Label is empty as per image, placeholder acts as label
             key="initial_search_bar",
             label_visibility="collapsed", # Hide the default label
-            placeholder="e.g., 'Impact of AI on healthcare patient engagement'"
+            placeholder="Ask anything", # Text inside the search bar
         )
         if initial_query: # If user types something and presses Enter
             # Simulate the chat input behavior and start the conversation
@@ -1218,7 +1225,9 @@ if not st.session_state.messages:
             save_chat_message(st.session_state.session_id, "user", initial_query)
             # Rerun the app to transition to the chat interface
             st.rerun()
-    st.markdown("<br><br><br><br><br><br><br>", unsafe_allow_html=True) # Add more space below
+    # Add more space below the input
+    st.markdown("<br><br><br><br><br><br><br>", unsafe_allow_html=True)
+
 else:
     # Existing chat display logic
     for message in st.session_state.messages:
@@ -1265,8 +1274,6 @@ else:
             st.session_state.messages.append({"role": "assistant", "content": full_assistant_response})
             save_chat_message(st.session_state.session_id, "assistant", full_assistant_response)
             
-            # Removed redundant st.rerun() here. State updates will naturally trigger it.
-
 
 # --- Display Search Results for Processing ---
 if st.session_state.current_processed_results:
