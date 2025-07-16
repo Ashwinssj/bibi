@@ -478,6 +478,51 @@ def optimize_scholar_query(user_query):
 
     return optimized_query
 
+def optimize_doaj_query(user_query):
+    """Uses Gemini to optimize a user's natural language query into a concise,
+    comma-separated list of keywords suitable for DOAJ API search.
+    """
+    prompt_template = f"""
+    You are an AI research assistant. Your task is to rephrase a user's natural language research query into a concise, comma-separated list of keywords suitable for searching academic databases like DOAJ.
+
+    Focus on:
+    - Extracting the core topic and key concepts.
+    - Expanding common abbreviations (e.g., "AI" to "Artificial Intelligence", "EHR" to "Electronic Health Record").
+    - Removing conversational filler ("I want to research...", "articles about...").
+    - Prioritizing academic terms.
+    - **Crucially, the output should be a comma-separated list of keywords. Do NOT use double quotes around individual phrases or the entire output. Do NOT add any extra punctuation beyond commas between keywords.**
+
+    Example 1:
+    User Query: "i want AI-Enhanced EHR System with Intelligent Prescription Processing and Automated Patient Engagement"
+    Optimized Query: Artificial Intelligence, Electronic Health Record, Intelligent Prescription Processing, Automated Patient Engagement
+
+    Example 2:
+    User Query: "papers on climate change impact on agriculture"
+    Optimized Query: climate change, agriculture, impact
+
+    Example 3:
+    User Query: "Machine learning with MCP model context protocol"
+    Optimized Query: Machine Learning, MCP model, context protocol
+
+    User Query: "{user_query}"
+    Optimized Query:
+    """
+    st.info("🧠 Optimizing your query for DOAJ...")
+    optimized_query, error = generate_gemini(prompt_template)
+    if error:
+        st.warning(f"Could not optimize DOAJ query, using original: {error}")
+        return user_query
+    
+    optimized_query = optimized_query.strip()
+    # Remove any stray double quotes
+    optimized_query = optimized_query.replace('"', '')
+    # Ensure it's comma-separated, then remove extra spaces around commas
+    optimized_query = re.sub(r'\s*,\s*', ',', optimized_query)
+    # Replace any remaining multiple spaces with single space (if any were left from other transformations)
+    optimized_query = re.sub(r'\s+', ' ', optimized_query).strip()
+
+    return optimized_query
+
 
 def search_google_scholar(query, num_results=7):
     """Performs a search using the SerpApi Google Scholar API with improved debugging."""
@@ -724,10 +769,13 @@ def search_doaj(query, num_results=7):
                 
                 # If no specific fulltext or PDF URL found, take the first available link
                 if not url and links:
-                    url = links[0].get('url')
-                    if not main_pub_url:
-                        main_pub_url = url
-
+                    for link in links: # Iterate to find the first general URL
+                        if link.get('url'):
+                            url = link['url']
+                            if not main_pub_url: # If main_pub_url wasn't set by fulltext, use this one
+                                main_pub_url = url
+                            break # Take the first available URL
+                
                 authors_list = bibjson.get('author', [])
                 authors = ", ".join([a.get('name', '') for a in authors_list if a.get('name')])
                 
@@ -832,10 +880,17 @@ def search_doaj_journals(query, num_results=7):
 
                 journal_url = None
                 links = bibjson.get('link', [])
+                # First, try to find a homepage link
                 for link in links:
                     if link.get('type') == 'homepage' and link.get('url'):
                         journal_url = link['url']
                         break
+                # If no homepage found, try to find any link with a URL
+                if not journal_url:
+                    for link in links:
+                        if link.get('url'):
+                            journal_url = link['url']
+                            break # Take the first available URL
                 
                 # Content snippet for a journal could be its keywords or a general description
                 keywords = bibjson.get('keywords', [])
@@ -917,10 +972,11 @@ def perform_unified_search(query, message_placeholder):
     all_processed_results = {}
     
     # Optimize the query once for all search engines
-    optimized_query = optimize_scholar_query(query)
+    optimized_scholar_exa_query = optimize_scholar_query(query)
+    doaj_optimized_query = optimize_doaj_query(query) # NEW: Specific optimization for DOAJ
 
     # 1. Search with Tavily (using optimized query and domain filter)
-    tavily_results, tavily_error = search_tavily(optimized_query)
+    tavily_results, tavily_error = search_tavily(optimized_scholar_exa_query)
     if tavily_error:
         st.warning(f"Tavily search encountered an issue: {tavily_error}")
     for result in tavily_results:
@@ -932,7 +988,7 @@ def perform_unified_search(query, message_placeholder):
                 "content_snippet": result.get('content', 'No snippet available.'),
                 "source_type": result.get('source', 'Website'),
                 "query": query, # Store original query
-                "optimized_query": optimized_query, # Store optimized query
+                "optimized_query": optimized_scholar_exa_query, # Store optimized query
                 "summary": None,
                 "annotation": None,
                 "authors": "",
@@ -948,7 +1004,7 @@ def perform_unified_search(query, message_placeholder):
             }
 
     # 2. Search with Google Scholar (already uses optimized query)
-    scholar_results, scholar_error = search_google_scholar(optimized_query)
+    scholar_results, scholar_error = search_google_scholar(optimized_scholar_exa_query)
     if scholar_error:
         st.warning(f"Google Scholar search encountered an issue: {scholar_error}")
     for result in scholar_results:
@@ -961,7 +1017,7 @@ def perform_unified_search(query, message_placeholder):
                 "content_snippet": result.get('content_snippet', existing_data.get('content_snippet', 'No snippet available.')),
                 "source_type": result.get('source_type', existing_data.get('source_type', 'Website')),
                 "query": query,
-                "optimized_query": optimized_query,
+                "optimized_query": optimized_scholar_exa_query,
                 "summary": existing_data.get('summary'),
                 "annotation": existing_data.get('annotation'),
                 "authors": result.get('authors', existing_data.get('authors', '')),
@@ -977,7 +1033,7 @@ def perform_unified_search(query, message_placeholder):
             }
 
     # 3. Search with Exa.ai (for individual articles/snippets, using optimized query and domain filter)
-    exa_search_results, exa_search_error = search_exa(optimized_query)
+    exa_search_results, exa_search_error = search_exa(optimized_scholar_exa_query)
     if exa_search_error:
         st.warning(f"Exa.ai individual article search encountered an issue: {exa_search_error}")
     for result in exa_search_results:
@@ -990,7 +1046,7 @@ def perform_unified_search(query, message_placeholder):
                 "content_snippet": result.get('content_snippet') if len(result.get('content_snippet', '')) > len(existing_data.get('content_snippet', '')) else existing_data.get('content_snippet', 'No snippet available.'),
                 "source_type": result.get('source_type', existing_data.get('source_type', 'Website')),
                 "query": query,
-                "optimized_query": optimized_query,
+                "optimized_query": optimized_scholar_exa_query,
                 "summary": existing_data.get('summary'),
                 "annotation": existing_data.get('annotation'),
                 "authors": result.get('authors', existing_data.get('authors', '')),
@@ -1005,8 +1061,8 @@ def perform_unified_search(query, message_placeholder):
                 "issn": "" # Default for articles
             }
 
-    # 4. Search with DOAJ Articles (using corrected method)
-    doaj_search_results, doaj_search_error = search_doaj(optimized_query)
+    # 4. Search with DOAJ Articles (using DOAJ-specific optimized query)
+    doaj_search_results, doaj_search_error = search_doaj(doaj_optimized_query)
     if doaj_search_error:
         st.warning(f"DOAJ article search encountered an issue: {doaj_search_error}")
     for result in doaj_search_results:
@@ -1019,7 +1075,7 @@ def perform_unified_search(query, message_placeholder):
                 "content_snippet": result.get('content_snippet') if len(result.get('content_snippet', '')) > len(existing_data.get('content_snippet', '')) else existing_data.get('content_snippet', 'No snippet available.'),
                 "source_type": result.get('source_type', existing_data.get('source_type', 'Website')),
                 "query": query,
-                "optimized_query": optimized_query,
+                "optimized_query": doaj_optimized_query, # Store DOAJ optimized query
                 "summary": existing_data.get('summary'),
                 "annotation": existing_data.get('annotation'),
                 "authors": result.get('authors', existing_data.get('authors', '')),
@@ -1034,8 +1090,8 @@ def perform_unified_search(query, message_placeholder):
                 "issn": "" # Default for articles
             }
     
-    # NEW: 5. Search with DOAJ Journals
-    doaj_journal_search_results, doaj_journal_search_error = search_doaj_journals(optimized_query)
+    # NEW: 5. Search with DOAJ Journals (using DOAJ-specific optimized query)
+    doaj_journal_search_results, doaj_journal_search_error = search_doaj_journals(doaj_optimized_query)
     if doaj_journal_search_error:
         st.warning(f"DOAJ journal search encountered an issue: {doaj_journal_search_error}")
     for result in doaj_journal_search_results:
@@ -1048,7 +1104,7 @@ def perform_unified_search(query, message_placeholder):
                 "content_snippet": result.get('content_snippet', existing_data.get('content_snippet', 'No snippet available.')),
                 "source_type": result.get('source_type', existing_data.get('source_type', 'Website')), # This will be "DOAJ Journal"
                 "query": query,
-                "optimized_query": optimized_query,
+                "optimized_query": doaj_optimized_query, # Store DOAJ optimized query
                 "summary": existing_data.get('summary'), # Will be None for journals
                 "annotation": existing_data.get('annotation'), # Will be None for journals
                 "authors": result.get('authors', existing_data.get('authors', '')), # Empty for journals
