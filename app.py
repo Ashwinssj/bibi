@@ -497,7 +497,8 @@ def search_google_scholar(query, num_results=7):
             st.error(f"SerpApi Error: {error}")
             return [], error
 
-        search_metadata = results.get('search_metadata', {})
+        # FIX: Changed 'results' to 'results_json'
+        search_metadata = results_json.get('search_metadata', {}) 
         if search_metadata.get('status') != 'Success':
             error = f"Search not successful. Status: {search_metadata.get('status')}"
             st.error(error)
