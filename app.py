@@ -480,29 +480,29 @@ def optimize_scholar_query(user_query):
 
 def optimize_doaj_query(user_query):
     """Uses Gemini to optimize a user's natural language query into a concise,
-    comma-separated list of keywords suitable for DOAJ API search.
+    space-separated list of keywords suitable for DOAJ API search.
     """
     prompt_template = f"""
-    You are an AI research assistant. Your task is to rephrase a user's natural language research query into a concise, comma-separated list of keywords suitable for searching academic databases like DOAJ.
+    You are an AI research assistant. Your task is to rephrase a user's natural language research query into a concise, space-separated list of keywords suitable for searching academic databases like DOAJ.
 
     Focus on:
     - Extracting the core topic and key concepts.
     - Expanding common abbreviations (e.g., "AI" to "Artificial Intelligence", "EHR" to "Electronic Health Record").
     - Removing conversational filler ("I want to research...", "articles about...").
     - Prioritizing academic terms.
-    - **Crucially, the output should be a comma-separated list of keywords. Do NOT use double quotes around individual phrases or the entire output. Do NOT add any extra punctuation beyond commas between keywords.**
+    - **Crucially, the output should be a space-separated list of keywords. Do NOT use double quotes around individual phrases or the entire output. Do NOT add any commas or other punctuation between keywords.**
 
     Example 1:
     User Query: "i want AI-Enhanced EHR System with Intelligent Prescription Processing and Automated Patient Engagement"
-    Optimized Query: Artificial Intelligence, Electronic Health Record, Intelligent Prescription Processing, Automated Patient Engagement
+    Optimized Query: Artificial Intelligence Electronic Health Record Intelligent Prescription Processing Automated Patient Engagement
 
     Example 2:
     User Query: "papers on climate change impact on agriculture"
-    Optimized Query: climate change, agriculture, impact
+    Optimized Query: climate change agriculture impact
 
     Example 3:
     User Query: "Machine learning with MCP model context protocol"
-    Optimized Query: Machine Learning, MCP model, context protocol
+    Optimized Query: Machine Learning MCP model context protocol
 
     User Query: "{user_query}"
     Optimized Query:
@@ -514,11 +514,9 @@ def optimize_doaj_query(user_query):
         return user_query
     
     optimized_query = optimized_query.strip()
-    # Remove any stray double quotes
-    optimized_query = optimized_query.replace('"', '')
-    # Ensure it's comma-separated, then remove extra spaces around commas
-    optimized_query = re.sub(r'\s*,\s*', ',', optimized_query)
-    # Replace any remaining multiple spaces with single space (if any were left from other transformations)
+    # Remove any stray double quotes or commas
+    optimized_query = optimized_query.replace('"', '').replace(',', '')
+    # Ensure it's space-separated, consolidating multiple spaces
     optimized_query = re.sub(r'\s+', ' ', optimized_query).strip()
 
     return optimized_query
