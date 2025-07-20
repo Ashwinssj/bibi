@@ -1,0 +1,639 @@
+/* General Body and Layout */
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Prevent global scrollbar */
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #1a1a2e; /* Dark background */
+    color: #e0e0e0; /* Light text */
+    display: flex; /* This flex is still useful for the container */
+    min-height: 100vh; /* Ensure body takes full height */
+    /* Removed overflow-y: scroll; from here */
+}
+
+.container {
+    display: flex;
+    width: 100%;
+    height: 100vh; /* Make container fill viewport height */
+}
+
+/* Sidebar Styling */
+.sidebar {
+    width: 300px;
+    background-color: #16213e; /* Slightly darker than body */
+    padding: 20px;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    position: fixed; /* Changed from sticky to fixed */
+    top: 0;
+    left: 0; /* Align to the left edge */
+    height: 100vh; /* Full viewport height */
+    overflow-y: auto; /* Scrollable if content overflows */
+    box-sizing: border-box; /* Include padding in width */
+    z-index: 100; /* Ensure sidebar is above main content if any overlap */
+}
+
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.sidebar-header .logo {
+    width: 50px;
+    height: auto;
+    margin-right: 10px;
+}
+
+.sidebar h2 {
+    color: #e0e0e0;
+    margin: 0;
+    font-size: 1.5em;
+}
+
+.sidebar h3 {
+    color: #e0e0e0;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    font-size: 1.2em;
+}
+
+.sidebar-link {
+    display: block;
+    padding: 10px 15px;
+    margin-bottom: 5px;
+    color: #90b8f8; /* Light blue for links */
+    text-decoration: none;
+    border-radius: 5px;
+    transition: background-color 0.3s ease;
+}
+
+.sidebar-link:hover {
+    background-color: #0f3460; /* Darker blue on hover */
+}
+
+.sidebar hr {
+    border: none;
+    border-top: 1px solid #0f3460;
+    margin: 20px 0;
+}
+
+/* Folder Management */
+.folder-management .expander summary {
+    cursor: pointer;
+    padding: 10px 0;
+    color: #90b8f8;
+    font-weight: bold;
+}
+
+.folder-management .expander[open] summary {
+    color: #e0e0e0; /* Change color when open */
+}
+
+.folder-management input[type="text"] {
+    width: calc(100% - 20px);
+    padding: 8px 10px;
+    margin-top: 10px;
+    border: 1px solid #0f3460;
+    border-radius: 4px;
+    background-color: #2c3e50;
+    color: #e0e0e0;
+}
+
+.folder-selector-form {
+    margin-top: 15px;
+}
+
+.folder-radio-group {
+    margin-bottom: 10px;
+}
+
+.folder-radio-group label {
+    display: block;
+    margin-bottom: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+    color: #c0c0c0;
+}
+
+.folder-radio-group input[type="radio"] {
+    margin-right: 8px;
+}
+
+/* Chat Actions */
+.chat-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.chat-history-sidebar {
+    max-height: 300px; /* Fixed height for sidebar chat history */
+    overflow-y: auto;
+    border: 1px solid #0f3460;
+    border-radius: 5px;
+    padding: 10px;
+    background-color: #2c3e50;
+    font-size: 0.85em;
+}
+
+.chat-history-sidebar .chat-message {
+    margin-bottom: 8px;
+    padding: 5px;
+    border-radius: 4px;
+}
+
+.chat-history-sidebar .chat-message.user {
+    background-color: #0f3460;
+    text-align: left;
+}
+
+.chat-history-sidebar .chat-message.assistant {
+    background-color: #3e2c50;
+    text-align: left;
+}
+
+/* Main Content Area */
+.main-content {
+    flex-grow: 1;
+    margin-left: 300px; /* Offset for the fixed sidebar */
+    padding: 20px 40px;
+    box-sizing: border-box;
+    /* Removed max-width: calc(100% - 300px); as it's redundant with flex-grow and margin-left */
+    padding-bottom: 100px; /* Add padding to prevent content from being hidden by sticky footer */
+    overflow-y: auto; /* Make main content scrollable */
+    height: 100vh; /* Ensure it takes full height for overflow to work */
+}
+
+/* Home Screen Specific */
+.home-screen {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - 40px); /* Adjust for main-content padding */
+    text-align: center;
+}
+
+.centered-content {
+    display: flex; /* Make it a flex container */
+    flex-direction: column; /* Stack children vertically */
+    align-items: center; /* Center children horizontally */
+    width: 100%;
+    max-width: 600px;
+}
+
+.centered-text {
+    color: #e0e0e0;
+    font-size: 2.5em;
+    margin-bottom: 30px;
+}
+
+.initial-search-form {
+    display: flex;
+    justify-content: center;
+    width: 100%; /* Ensure it takes full width for centering */
+}
+
+.initial-search-input {
+    width: 80%;
+    padding: 15px 20px;
+    border: 2px solid #90b8f8;
+    border-radius: 30px;
+    background-color: #2c3e50;
+    color: #e0e0e0;
+    font-size: 1.2em;
+    outline: none;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.initial-search-input::placeholder {
+    color: #a0a0a0;
+}
+
+.initial-search-input:focus {
+    border-color: #0f3460;
+    box-shadow: 0 0 10px rgba(144, 184, 248, 0.5);
+}
+
+/* Chat Interface */
+.chat-interface {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative; /* Needed for loading overlay positioning */
+}
+
+/* Sticky Chat Input Container */
+.chat-input-container {
+    position: sticky;
+    bottom: 0;
+    /* Removed 'left: 0;' as it's redundant for a sticky element within a flow */
+    width: 100%;
+    background-color: #1a1a2e; /* Match body background */
+    padding: 20px 0; /* Add vertical padding */
+    box-sizing: border-box;
+    z-index: 1000; /* Ensure it stays on top */
+    border-top: 1px solid #0f3460; /* Optional: a subtle border */
+}
+
+.chat-input-form {
+    display: flex;
+    gap: 10px;
+    max-width: 900px; /* Limit width to match content */
+    margin: 0 auto; /* Center the form within its container */
+    padding: 0 20px; /* Horizontal padding */
+}
+
+.chat-input-form input[type="text"] {
+    flex-grow: 1;
+    padding: 12px 15px;
+    border: 1px solid #0f3460;
+    border-radius: 25px;
+    background-color: #2c3e50;
+    color: #e0e0e0;
+    font-size: 1em;
+}
+
+.chat-input-form button {
+    padding: 12px 25px;
+    background-color: #90b8f8;
+    color: #1a1a2e;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background-color 0.3s ease;
+}
+
+.chat-input-form button:hover {
+    background-color: #7a9fd8;
+}
+
+/* Search Results and Library Items */
+.search-result-card, .library-item-card {
+    background-color: #2c3e50;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+
+    /* Animation properties for search result cards */
+    opacity: 0; /* Start hidden */
+    transform: translateY(20px); /* Start slightly below */
+    animation: fade-in-slide-up 0.5s ease-out forwards; /* Apply animation, delay set by JS */
+}
+
+.search-result-card h3, .library-item-card h3 {
+    margin-top: 0;
+    color: #90b8f8;
+    font-size: 1.3em;
+}
+
+.search-result-card h3 a, .library-item-card h3 a {
+    color: #90b8f8;
+    text-decoration: none;
+}
+
+.search-result-card h3 a:hover, .library-item-card h3 a:hover {
+    text-decoration: underline;
+}
+
+.caption {
+    font-size: 0.9em;
+    color: #b0b0b0;
+    margin-bottom: 5px;
+}
+
+.snippet {
+    margin-top: 15px;
+    margin-bottom: 15px;
+    line-height: 1.6;
+    color: #c0c0c0;
+}
+
+.link-button {
+    display: inline-block;
+    padding: 5px 10px;
+    background-color: #0f3460;
+    color: #e0e0e0;
+    text-decoration: none;
+    border-radius: 5px;
+    margin-right: 10px;
+    font-size: 0.9em;
+    transition: background-color 0.3s ease;
+}
+
+.link-button:hover {
+    background-color: #1a1a2e;
+}
+
+.action-buttons {
+    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap; /* Allow buttons to wrap */
+    gap: 10px; /* Space between buttons */
+    align-items: center;
+}
+
+.action-buttons button {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.3s ease;
+    background-color: #4a5d7a; /* Default button color */
+    color: #e0e0e0;
+}
+
+.action-buttons button:hover:not(:disabled) {
+    background-color: #5b7294;
+}
+
+.action-buttons button:disabled {
+    background-color: #3a4a5c;
+    color: #808080;
+    cursor: not-allowed;
+}
+
+.button-save {
+    background-color: #28a745; /* Green for save */
+}
+
+.button-save:hover:not(:disabled) {
+    background-color: #218838;
+}
+
+.button-delete {
+    background-color: #dc3545; /* Red for delete */
+}
+
+.button-delete:hover:not(:disabled) {
+    background-color: #c82333;
+}
+
+.button-small {
+    padding: 6px 12px;
+    font-size: 0.85em;
+    background-color: #4a5d7a;
+    color: #e0e0e0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.button-small:hover {
+    background-color: #5b7294;
+}
+
+
+.save-folder-select {
+    padding: 7px 10px;
+    border: 1px solid #0f3460;
+    border-radius: 5px;
+    background-color: #2c3e50;
+    color: #e0e0e0;
+    font-size: 0.9em;
+    margin-right: 5px;
+    cursor: pointer;
+}
+
+.save-folder-select option {
+    background-color: #2c3e50;
+    color: #e0e0e0;
+}
+
+/* Expander (details/summary) styling */
+details.expander {
+    margin-top: 15px;
+    background-color: #3a4a5c; /* Slightly lighter than card for contrast */
+    border-radius: 5px;
+    padding: 10px 15px;
+}
+
+details.expander summary {
+    cursor: pointer;
+    font-weight: bold;
+    color: #e0e0e0;
+    outline: none; /* Remove default outline on focus */
+}
+
+details.expander summary::-webkit-details-marker {
+    display: none; /* Hide default arrow */
+}
+
+details.expander summary:before {
+    content: '▶'; /* Custom arrow */
+    margin-right: 10px;
+    transition: transform 0.2s;
+    display: inline-block;
+}
+
+details.expander[open] summary:before {
+    content: '▼'; /* Custom arrow when open */
+    transform: rotate(0deg);
+}
+
+.summary-content, .annotation-content, .snippet-content {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #4a5d7a;
+    color: #c0c0c0;
+    line-height: 1.6;
+    white-space: pre-wrap; /* Preserve line breaks from |linebreaksbr */
+}
+
+.citations-block {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #4a5d7a;
+    color: #c0c0c0;
+    line-height: 1.6;
+}
+
+.citations-block p {
+    margin-bottom: 5px;
+}
+
+.citations-block strong {
+    color: #90b8f8;
+}
+
+/* Messages (Django messages framework) */
+.messages {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 20px 0;
+}
+
+.messages li {
+    padding: 10px 15px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    font-weight: bold;
+    color: #1a1a2e; /* Dark text for messages */
+}
+
+.messages .success {
+    background-color: #d4edda; /* Light green */
+    color: #155724; /* Dark green text */
+    border: 1px solid #c3e6cb;
+}
+
+.messages .info {
+    background-color: #d1ecf1; /* Light blue */
+    color: #0c5460; /* Dark blue text */
+    border: 1px solid #bee5eb;
+}
+
+.messages .warning {
+    background-color: #fff3cd; /* Light yellow */
+    color: #856404; /* Dark yellow text */
+    border: 1px solid #ffeeba;
+}
+
+.messages .error {
+    background-color: #f8d7da; /* Light red */
+    color: #721c24; /* Dark red text */
+    border: 1px solid #f5c6cb;
+}
+
+/* Utility classes */
+.centered-text {
+    text-align: center;
+}
+
+.info-message {
+    background-color: #2c3e50;
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+    color: #c0c0c0;
+    margin-top: 20px;
+}
+
+/* Local Loading Indicator for Home Screen */
+.local-loading-indicator {
+    padding: 15px 40px; /* Adjust padding to match image */
+    background-color: #3e5060; /* Dark blue-grey, similar to image */
+    color: #e0e0e0;
+    border: none; /* No border as per image */
+    border-radius: 25px; /* Rounded corners */
+    font-size: 1.5em; /* Larger text for visibility */
+    font-weight: bold;
+    /* Updated box-shadow for subtle blue glow */
+    box-shadow: 0 0 10px 2px rgba(144, 184, 248, 0.3); 
+    animation: pulse 1.5s infinite ease-in-out; /* Pulsing animation */
+    
+    /* Positioning for the home screen specific loading indicator */
+    margin-top: 30px; /* Space below search input */
+    display: inline-block; /* To allow margin auto for centering */
+    opacity: 0; /* Start hidden */
+    visibility: hidden; /* Start hidden */
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.local-loading-indicator.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.05);
+        opacity: 0.8;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Keyframes for fade-in and slide-up animation */
+@keyframes fade-in-slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        position: relative; /* No longer fixed on small screens, allow scrolling with content */
+        height: auto;
+        max-height: 400px; /* Limit sidebar height on mobile */
+        margin-left: 0; /* Remove fixed margin on mobile */
+    }
+
+    .main-content {
+        max-width: 100%;
+        padding: 15px;
+        padding-bottom: 100px; /* Adjust padding for sticky footer */
+        margin-left: 0; /* Remove fixed margin on mobile */
+        height: auto; /* Allow height to adjust on mobile */
+        overflow-y: visible; /* Allow content to push height on mobile */
+    }
+
+    .home-screen {
+        min-height: auto;
+        padding: 20px 0;
+    }
+
+    .initial-search-input {
+        width: 90%;
+        font-size: 1em;
+    }
+
+    .chat-message {
+        max-width: 95%;
+    }
+
+.chat-input-form {
+    display: flex;
+    gap: 10px;
+    /* Removed max-width and margin auto to allow the form to stretch */
+    /* max-width: 900px; */
+    /* margin: 0 auto; */
+    padding: 0 20px; /* This padding now defines the inner spacing, aligning with card content */
+}
+
+    .chat-input-form input[type="text"] {
+        width: calc(100% - 30px); /* Adjust for padding */
+    }
+
+    .chat-input-form button {
+        width: 100%;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .action-buttons button, .save-folder-select {
+        width: 100%;
+        margin-right: 0 !important;
+    }
+}
