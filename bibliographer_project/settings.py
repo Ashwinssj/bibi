@@ -48,6 +48,7 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -128,6 +129,10 @@ USE_TZ = True
 
 STATIC_URL = "/static/" # This is the URL prefix for serving static files
 STATIC_ROOT = BASE_DIR / "staticfiles" # This is the directory where collectstatic gathers files
+
+STORAGES ={
+    "staticfiles":{"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
 
 # CSRF_TRUSTED_ORIGINS for Render deployment
 CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:8000').split(',')

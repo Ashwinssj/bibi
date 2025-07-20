@@ -10,7 +10,9 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/wsgi/
 import os
 
 from django.core.wsgi import get_wsgi_application
+from whitenoise.django import DjangoWhiteNoise # Import WhiteNoise
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "bibliographer_project.settings")
 
 application = get_wsgi_application()
+application = DjangoWhiteNoise(application) # Wrap your WSGI application with WhiteNoise
