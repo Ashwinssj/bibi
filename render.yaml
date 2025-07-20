@@ -1,0 +1,53 @@
+# This file defines the services for your Django application on Render.
+# For more information, see https://render.com/docs/blueprint
+services:
+  # Web Service for Django Application
+  - type: web
+    name: ai-bibliographer
+    env: python
+    buildCommand: "./build.sh" # Custom build script for static files and migrations
+    startCommand: "gunicorn bibliographer_project.wsgi:application"
+    healthCheckPath: /admin/login/ # A simple path to check if the app is running
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-bibliographer-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: ai-bibliographer-redis
+          property: connectionString
+      - key: DJANGO_SECRET_KEY
+        generateValue: true # Render will generate a strong secret key for you
+      - key: DJANGO_DEBUG
+        value: "False" # Set to False for production
+      - key: DJANGO_ALLOWED_HOSTS
+        value: "ai-bibliographer.onrender.com,localhost,127.0.0.1" # IMPORTANT: Update with your actual Render domain after deployment
+      - key: CSRF_TRUSTED_ORIGINS
+        value: "https://ai-bibliographer.onrender.com" # IMPORTANT: Update with your actual Render domain after deployment, include http://localhost:8000 for local testing
+      # Add your API keys and other secrets here.
+      # It's recommended to set these as "Secret Files" or "Secret Values" in Render dashboard for better security.
+      # For blueprint, you can use `sync: false` and manage them in the Render dashboard.
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: SERPAPI_API_KEY
+        sync: false
+      - key: EXA_API_KEY
+        sync: false
+      - key: SCRAPERAPI_API_KEY
+        sync: false
+      # UPSTASH_REDIS_HOST, PORT, PASSWORD are NOT needed if REDIS_URL is used from Render's managed Redis.
+      # You can keep them in your local .env file for local development.
+  # PostgreSQL Database Service
+  - type: database # This is the correct type for a managed PostgreSQL database in Render Blueprint
+    name: ai-bibliographer-db
+    plan: free # Or 'standard' for more robust needs
+  # Redis Service
+  - type: redis
+    name: ai-bibliographer-redis
+    plan: free # Or 'standard' for more robust needs
+    ipAllowList: [] # Allow all connections (default for internal services)
+
