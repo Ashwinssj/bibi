@@ -1,0 +1,109 @@
+{% load static %}
+{% load custom_filters %} {# Load your custom filter here #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Bibliographer</title>
+    <link rel="icon" href="{% static 'research_assistant/favicon.png' %}" type="image/png">
+    <link rel="stylesheet" href="{% static 'research_assistant/style.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="{% static 'research_assistant/logo.svg' %}" alt="Logo" class="logo">
+                <h2>AI Bibliographer</h2>
+            </div>
+            <hr>
+
+            <a href="{% url 'research_assistant:chat' %}" class="sidebar-link">📚 Research Assistant</a>
+            <a href="{% url 'research_assistant:library' %}" class="sidebar-link">📂 My Library</a>
+            <hr>
+
+            <h3>Folders</h3>
+            <div class="folder-management">
+                <details class="expander">
+                    <summary>➕ Create New Folder</summary>
+                    <form action="{% url 'research_assistant:create_folder' %}" method="post">
+                        {% csrf_token %}
+                        <input type="text" name="new_folder_name_input" placeholder="Folder Name" required>
+                        <button type="submit" class="button-small">Create</button>
+                    </form>
+                </details>
+            </div>
+
+            <form action="{% url 'research_assistant:library' %}" method="post" class="folder-selector-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="select_folder">
+                <div class="folder-radio-group">
+                    <p>View Folder:</p>
+                    <label>
+                        <input type="radio" name="folder_selector_radio" value="None" {% if not selected_folder_id %}checked{% endif %}> Select a folder to view...
+                    </label>
+                    <label>
+                        <input type="radio" name="folder_selector_radio" value="root" {% if selected_folder_id == "root" %}checked{% endif %}> All Items (Root)
+                    </label>
+                    {% for folder in folders %}
+                        <label>
+                            <input type="radio" name="folder_selector_radio" value="{{ folder.id }}" {% if selected_folder_id == folder.id %}checked{% endif %}> {{ folder.name }}
+                        </label>
+                    {% endfor %}
+                </div>
+                <button type="submit" class="button-small" style="width: 100%;">Apply Folder Filter</button>
+            </form>
+
+            {% if selected_folder_data %} {# Use the directly passed selected_folder_data #}
+                <hr>
+                <form action="{% url 'research_assistant:delete_folder' selected_folder_data.id %}" method="post" onsubmit="return confirm('Are you sure you want to permanently delete folder \'{{ selected_folder_data.name }}\' and all its associated items? This cannot be undone.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_folder">
+                    <input type="hidden" name="folder_id_to_delete" value="{{ selected_folder_data.id }}">
+                    <button type="submit" class="button-delete">🗑️ Delete '{{ selected_folder_data.name }}'</button>
+                </form>
+            {% endif %}
+
+            <hr>
+            <h3>💬 Chat History</h3>
+            <div class="chat-actions">
+                <form action="{% url 'research_assistant:start_new_research' %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="button-small">✨ Start New Research</button>
+                </form>
+                <form action="{% url 'research_assistant:clear_chat_display' %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="button-small">Clear Chat Display</button>
+                </form>
+            </div>
+            <div class="chat-history-sidebar">
+                {% if messages_history %}
+                    {% for msg in messages_history %}
+                        <div class="chat-message {{ msg.role }}">
+                            <strong>{{ msg.role|capfirst }}:</strong> {{ msg.content|linebreaksbr }}
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="caption">Chat history is empty for this session.</p>
+                {% endif %}
+            </div>
+        </aside>
+
+        <main class="main-content">
+            {% if messages %}
+                <ul class="messages">
+                    {% for message in messages %}
+                        <li class="{{ message.tags }}">
+                            {{ message }}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    {# GLOBAL Loading Overlay HTML - REMOVED #}
+</body>
+</html>

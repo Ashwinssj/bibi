@@ -113,3 +113,9 @@ watchdog==6.0.0
 websocket-client==1.8.0
 wrapt==1.17.2
 wsproto==1.2.0
+<<<<<<< HEAD
+=======
+dj-database-url==2.2.0
+gunicorn==22.0.0
+psycopg2-binary==2.9.9
+>>>>>>> 0df532b2ea0d05adc0750ddd0f795949dff0ad1e

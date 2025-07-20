@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load custom_filters %} {# Load your custom filter here #}
+
+{% block content %}
+<div class="library-interface">
+    {% if selected_folder_id %}
+        {% if selected_folder_id == "root" %}
+            <h2>📂 Library Items in 'All Items (Root)'</h2>
+        {% elif selected_folder_data %} {# Check if selected_folder_data exists and is not root/None #}
+            <h2>📂 Library Items in '{{ selected_folder_data.name }}'</h2>
+        {% else %}
+            {# This case handles if a folder_id is selected but the folder data couldn't be found (e.g., deleted by another session) #}
+            <h2>📂 Library Items (Folder Not Found)</h2>
+            <p class="caption">The selected folder could not be found. Please select another folder or refresh.</p>
+        {% endif %}
+    {% else %}
+        <h2>📂 My Library</h2>
+        <p class="caption">Please select a folder from the sidebar to view items.</p>
+    {% endif %}
+
+    {% if not library_items and selected_folder_id and selected_folder_id != "None" %}
+        <p class="info-message">No items found for this selection.</p>
+    {% elif not selected_folder_id or selected_folder_id == "None" %}
+        {# Message already displayed above #}
+    {% else %}
+        {% for item in library_items %}
+            <div class="library-item-card">
+                <h3><a href="{{ item.url }}" target="_blank">{{ item.title }}</a></h3>
+                <p class="caption">Added: {{ item.added_timestamp|date:"Y-m-d" }} | Source: {{ item.source_type }}</p>
+                
+                {% if item.authors %}<p class="caption">Authors: {{ item.authors }}</p>{% endif %}
+                {% if item.year %}<p class="caption">Year: {{ item.year }}</p>{% endif %}
+                {% if item.journal_name %}<p class="caption">Journal: {{ item.journal_name }}</p>{% endif %}
+                {% if item.volume %}<p class="caption">Volume: {{ item.volume }}</p>{% endif %}
+                {% if item.pages %}<p class="caption">Pages: {{ item.pages }}</p>{% endif %}
+                {% if item.publisher %}<p class="caption">Publisher: {{ item.publisher }}</p>{% endif %}
+                {% if item.issn %}<p class="caption">ISSN: {{ item.issn }}</p>{% endif %}
+
+                <p class="caption">Original Query: <em>{{ item.query }}</em></p>
+
+                {% if item.main_pub_url and item.url != item.main_pub_url %}
+                    <a href="{{ item.main_pub_url }}" target="_blank" class="link-button">Main Article</a>
+                {% endif %}
+                {% if item.pdf_url and item.url != item.pdf_url %}
+                    <a href="{{ item.pdf_url }}" target="_blank" class="link-button">PDF</a>
+                {% endif %}
+
+                {% if item.summary %}
+                    <details class="expander">
+                        <summary>Summary</summary>
+                        <div class="summary-content">{{ item.summary|linebreaksbr }}</div>
+                    </details>
+                {% endif %}
+                {% if item.annotation %}
+                    <details class="expander">
+                        <summary>Annotation</summary>
+                        <div class="annotation-content">{{ item.annotation|linebreaksbr }}</div>
+                    </details>
+                {% endif %}
+                {% if item.content_snippet %}
+                    <details class="expander">
+                        <summary>Original Snippet/Abstract</summary>
+                        <div class="snippet-content">{{ item.content_snippet|linebreaksbr }}</div>
+                    </details>
+                {% endif %}
+
+                <div class="action-buttons">
+                    <form action="{% url 'research_assistant:library' %}" method="post" style="display: inline-block;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="cite_library">
+                        <input type="hidden" name="item_key" value="{{ item.item_key }}">
+                        <button type="submit">Cite</button>
+                    </form>
+                    <form action="{% url 'research_assistant:delete_library_item' item.item_key %}" method="post" onsubmit="return confirm('Are you sure you want to permanently delete this item?');" style="display: inline-block;">
+                        {% csrf_token %}
+                        <button type="submit" class="button-delete">🗑️ Delete Item</button>
+                    </form>
+                </div>
+
+                {# Display citations if available for library item #}
+                {% if show_citations_lib|get_item:item.item_key %}
+                    <details class="expander" open>
+                        <summary>View Citations</summary>
+                        <div class="citations-block">
+                            {% with citations_data=show_citations_lib|get_item:item.item_key %}
+                                {% for style, citation_text in citations_data.items %}
+                                    <p><strong>{{ style }}:</strong> {{ citation_text|safe }}</p>
+                                {% endfor %}
+                            {% endwith %}
+                            <form action="{% url 'research_assistant:library' %}" method="post" style="display: inline-block;">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="close_cite_library">
+                                <input type="hidden" name="item_key" value="{{ item.item_key }}">
+                                <button type="submit" class="button-small">Close Citations</button>
+                            </form>
+                        </div>
+                    </details>
+                {% endif %}
+            </div>
+        {% endfor %}
+    {% endif %}
+</div>
+{% endblock content %}
+
