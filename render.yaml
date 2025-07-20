@@ -6,6 +6,7 @@ services:
   - type: web
     name: ai-bibliographer
     env: python
+    plan: free # Use free tier
     buildCommand: "./build.sh" # Custom build script for static files and migrations
     startCommand: "gunicorn bibliographer_project.wsgi:application"
     healthCheckPath: /admin/login/ # A simple path to check if the app is running
@@ -46,7 +47,7 @@ services:
   # Redis Service (using keyvalue type)
   - type: keyvalue
     name: ai-bibliographer-redis
-    plan: free # Or 'starter' for more robust needs
+    plan: starter # Use the correct free tier name
     ipAllowList: [] # Only allow internal connections
 
 # PostgreSQL Database Service (defined in databases section)
@@ -54,4 +55,4 @@ databases:
   - name: ai-bibliographer-db
     databaseName: ai_bibliographer
     user: ai_bibliographer_user
-    plan: free # Or 'basic-256mb' for more robust needs
+    plan: starter # Use the correct free tier name
