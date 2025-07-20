@@ -68,6 +68,8 @@ def configure_clients():
         if not SERPAPI_API_KEY: missing_vars.append("SERPAPI_API_KEY")
         if not EXA_API_KEY: missing_vars.append("EXA_API_KEY")
         if not SCRAPERAPI_API_KEY: missing_vars.append("SCRAPERAPI_API_KEY")
+        
+        print(f"DEBUG: Missing environment variables check: {missing_vars}")
 
         if missing_vars:
             raise ValueError(f"⚠️ Critical API keys or Redis connection details missing FROM ENV VARS: {', '.join(missing_vars)}. Please check Django settings and .env file.")
@@ -94,12 +96,14 @@ def configure_clients():
         # Configure Redis
         if REDIS_URL:
             # Use REDIS_URL provided by Render's managed Redis
+            print(f"DEBUG: Using REDIS_URL from Render: {REDIS_URL[:20]}...") # Mask URL for security
             redis_client = redis.from_url(REDIS_URL, decode_responses=True)
         else:
             # Fallback to individual UPSTASH variables for local development or other setups
             if not isinstance(UPSTASH_REDIS_PORT, int) or UPSTASH_REDIS_PORT == 0:
                 raise ValueError(f"🚨 Invalid or missing UPSTASH_REDIS_PORT: '{UPSTASH_REDIS_PORT}'. It must be a number.")
 
+            print(f"DEBUG: Falling back to UPSTASH variables. Host: {UPSTASH_REDIS_HOST}, Port: {UPSTASH_REDIS_PORT}")
             redis_client = redis.Redis(
                 host=UPSTASH_REDIS_HOST,
                 port=UPSTASH_REDIS_PORT,
@@ -107,7 +111,9 @@ def configure_clients():
                 ssl=True, # Assuming Upstash always uses SSL
                 decode_responses=True
             )
+        print("DEBUG: Attempting Redis ping...")
         redis_client.ping()
+        print("DEBUG: Redis ping successful.")
 
     except redis.exceptions.ConnectionError as e:
         raise ConnectionError(f"🚨 Could not connect to Redis: {e}. Please verify connection details and Upstash instance status.") from e
