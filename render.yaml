@@ -43,10 +43,9 @@ services:
       # You can keep them in your local .env file for local development.
 
   # PostgreSQL Database Service
-  - type: postgres # CHANGED from 'pserv' to 'postgres'
+  - type: postgres # This is the correct type for a managed PostgreSQL database in Render Blueprint
     name: ai-bibliographer-db
     plan: free # Or 'standard' for more robust needs
-    # disk block remains REMOVED for free tier
 
   # Redis Service
   - type: redis
