@@ -44,9 +44,10 @@ services:
       # You can keep them in your local .env file for local development.
 
   # PostgreSQL Database Service
-  - type: pserv
+  - type: postgres
     name: ai-bibliographer-db
-    env: postgresql
+    databaseName: ai_bibliographer
+    databaseUser: ai_bibliographer_user
     plan: free # Or 'standard' for more robust needs
 
   # Redis Service
