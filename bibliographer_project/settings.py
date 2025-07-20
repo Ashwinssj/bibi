@@ -39,8 +39,8 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
-    "django.contrib.staticfiles",
-    "research_assistant",
+    "django.contrib.staticfiles", # Make sure this is here
+    "research_assistant", # Make sure your app is here
 ]
 
 MIDDLEWARE = [
@@ -126,8 +126,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_URL = "/static/" # This is the URL prefix for serving static files
+STATIC_ROOT = BASE_DIR / "staticfiles" # This is the directory where collectstatic gathers files
 
 # CSRF_TRUSTED_ORIGINS for Render deployment
 CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:8000').split(',')
