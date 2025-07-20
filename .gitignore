@@ -1,0 +1,89 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Environments
+.env
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Django stuff:
+*.log
+*.pot
+*.mo
+*.sqlite3
+db.sqlite3
+media/  # User-uploaded media files (if you implement file uploads)
+staticfiles/ # Collected static files
+
+# IDEs and editors
+.idea/                  # JetBrains IDEs (PyCharm, IntelliJ)
+*.iml                   # JetBrains project files
+.vscode/                # VS Code
+.DS_Store               # macOS
+Thumbs.db               # Windows
+ehthumbs.db             # Windows
+.directory              # Linux (KDE)
+
+# Virtualenv
+# pip-installed packages
+# .venv/
+# env/
+# venv/
+# bin/
+# include/
+# lib/
+# lib64/
+# local/
+
+# System Files
+.DS_Store
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Other common files
+*.swp
+*.bak
+*.swo
+*~
+.#*
+.fuse_hidden*
+.nfs*
+
+# Render specific files (if any are generated locally and should not be committed)
+# For example, if Render generates a local build output you want to ignore:
+# .render_build/
+
+# Python specific build artifacts
+dist/
+build/
+*.egg
+
+# Jupyter Notebook / IPython history
+.ipynb_checkpoints
+
+# MyPy cache
+.mypy_cache/
+
+# pytest cache
+.pytest_cache/
+
+# Coverage reports
+.coverage
+htmlcov/
+.coverage.*
+
+# Black (Python formatter) cache
+.black_cache/
+
+# DVC (Data Version Control)
+.dvc/

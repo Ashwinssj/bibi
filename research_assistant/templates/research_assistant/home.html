@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="home-screen">
+    <div class="centered-content">
+        <br><br><br><br><br><br><br>
+        <h2 class="centered-text">What can I help with?</h2>
+        <form id="initial-search-form" action="{% url 'research_assistant:home' %}" method="post" class="initial-search-form">
+            {% csrf_token %}
+            <input type="text" name="initial_query" placeholder="Ask anything" class="initial-search-input" required autofocus>
+            {# Hidden submit button to allow Enter key to submit form #}
+            <button type="submit" style="display: none;"></button> 
+        </form>
+        {# New loading indicator for home screen with dynamic text span #}
+        <div id="home-loading-indicator" class="local-loading-indicator">
+            <span id="loading-text">Loading</span>
+        </div>
+        <br><br><br><br><br><br><br>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const initialSearchForm = document.getElementById('initial-search-form');
+        const homeLoadingIndicator = document.getElementById('home-loading-indicator');
+        const loadingTextElement = document.getElementById('loading-text'); // Get the specific text element
+
+        const loadingMessages = [
+            "Searching...",
+            "Optimizing query...",
+            "Searching Google Scholar...",
+            "Searching Exa.ai...",
+            "Searching DOAJ...",
+            "Generating report...",
+            "Almost done..."
+        ];
+        let messageIndex = 0;
+        let messageInterval;
+
+        initialSearchForm.addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent default submission initially
+            
+            homeLoadingIndicator.classList.add('active'); // Show the loading indicator
+            
+            // Start cycling messages
+            loadingTextElement.textContent = loadingMessages[messageIndex];
+            messageIndex = (messageIndex + 1) % loadingMessages.length;
+
+            messageInterval = setInterval(() => {
+                loadingTextElement.textContent = loadingMessages[messageIndex];
+                messageIndex = (messageIndex + 1) % loadingMessages.length;
+            }, 1500); // Change message every 1.5 seconds
+
+            // Submit the form after a very short delay to allow the indicator to render
+            setTimeout(() => {
+                initialSearchForm.submit();
+                // clearInterval is not strictly necessary here as the page will navigate away,
+                // effectively stopping the interval. If this were an AJAX call on the same page,
+                // you would call clearInterval on success/failure of the AJAX request.
+            }, 50); 
+        });
+    });
+</script>
+{% endblock content %}

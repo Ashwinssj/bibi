@@ -1,0 +1,1 @@
+web: gunicorn bibliographer_project.wsgi:application
