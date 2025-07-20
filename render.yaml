@@ -1,6 +1,5 @@
 # This file defines the services for your Django application on Render.
 # For more information, see https://render.com/docs/blueprint
-
 services:
   # Web Service for Django Application
   - type: web
@@ -47,10 +46,11 @@ services:
   - type: pserv
     name: ai-bibliographer-db
     plan: free # Or 'standard' for more robust needs
-    disk:
-      name: ai-bibliographer-db-disk
-      mountPath: /var/lib/postgresql/data
-      sizeGB: 1 # Minimum size for free tier
+    # REMOVED: disk block - disks are not supported for free tier services
+    # disk:
+    #   name: ai-bibliographer-db-disk
+    #   mountPath: /var/lib/postgresql/data
+    #   sizeGB: 1 # Minimum size for free tier
 
   # Redis Service
   - type: redis
