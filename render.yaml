@@ -47,7 +47,7 @@ services:
   # Redis Service (using keyvalue type)
   - type: keyvalue
     name: ai-bibliographer-redis
-    plan: starter # Use the correct free tier name
+    plan: free # Use the correct free tier name
     ipAllowList: [] # Only allow internal connections
 
 # PostgreSQL Database Service (defined in databases section)
@@ -55,4 +55,4 @@ databases:
   - name: ai-bibliographer-db
     databaseName: ai_bibliographer
     user: ai_bibliographer_user
-    plan: starter # Use the correct free tier name
+    plan: free # Use the correct free tier name
