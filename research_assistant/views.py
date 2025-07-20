@@ -6,12 +6,7 @@ from django.contrib import messages
 from . import services # Import your services module
 
 # Initialize clients (will be called on first import, handles single instance)
-try:
-    services.configure_clients()
-except Exception as e:
-    # Log the error, but don't stop the server from starting if possible
-    print(f"Error configuring services on startup: {e}")
-
+services.configure_clients()
 def process_query_and_respond(request, query_text, session_id):
     """Helper function to encapsulate query processing and response generation."""
     messages.info(request, "🧠 Thinking... Searching across multiple sources (Tavily, Google Scholar, Exa.ai, DOAJ) and generating a research report...")
