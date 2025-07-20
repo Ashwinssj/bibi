@@ -43,14 +43,10 @@ services:
       # You can keep them in your local .env file for local development.
 
   # PostgreSQL Database Service
-  - type: pserv
+  - type: postgres # CHANGED from 'pserv' to 'postgres'
     name: ai-bibliographer-db
     plan: free # Or 'standard' for more robust needs
-    # REMOVED: disk block - disks are not supported for free tier services
-    # disk:
-    #   name: ai-bibliographer-db-disk
-    #   mountPath: /var/lib/postgresql/data
-    #   sizeGB: 1 # Minimum size for free tier
+    # disk block remains REMOVED for free tier
 
   # Redis Service
   - type: redis
