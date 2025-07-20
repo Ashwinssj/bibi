@@ -1,5 +1,6 @@
 # This file defines the services for your Django application on Render.
 # For more information, see https://render.com/docs/blueprint
+
 services:
   # Web Service for Django Application
   - type: web
@@ -41,13 +42,16 @@ services:
         sync: false
       # UPSTASH_REDIS_HOST, PORT, PASSWORD are NOT needed if REDIS_URL is used from Render's managed Redis.
       # You can keep them in your local .env file for local development.
+
   # PostgreSQL Database Service
-  - type: database # This is the correct type for a managed PostgreSQL database in Render Blueprint
+  - type: postgres
     name: ai-bibliographer-db
+    databaseName: ai_bibliographer
+    databaseUser: ai_bibliographer_user
     plan: free # Or 'standard' for more robust needs
+
   # Redis Service
   - type: redis
     name: ai-bibliographer-redis
     plan: free # Or 'standard' for more robust needs
     ipAllowList: [] # Allow all connections (default for internal services)
-
