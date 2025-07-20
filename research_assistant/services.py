@@ -117,13 +117,7 @@ def configure_clients():
         raise Exception(f"🚨 An unexpected error occurred during configuration: {e}") from e
 
 # Initialize clients on module load
-try:
-    configure_clients()
-except Exception as e:
-    print(f"Failed to configure clients on startup: {e}")
-    # In a real Django app, you might log this and ensure the app doesn't crash
-    # For now, let's allow it to proceed and handle errors in views if clients are None.
-
+configure_clients()
 
 # --- Redis Data Structure Keys ---
 FOLDER_MASTER_LIST_KEY = "folders"
