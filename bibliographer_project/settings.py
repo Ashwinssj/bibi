@@ -152,3 +152,4 @@ REDIS_URL = os.getenv("REDIS_URL") # New: For Render's managed Redis
 SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
 EXA_API_KEY = os.getenv("EXA_API_KEY")
 SCRAPERAPI_API_KEY = os.getenv("SCRAPERAPI_API_KEY")
+
