@@ -1,20 +1,18 @@
-{% load static %}
-{% load custom_filters %} {# Load your custom filter here #}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Bibliographer</title>
-    <link rel="icon" href="{% static 'research_assistant/research_assistant/favicon.png' %}" type="image/png"> {# CHANGED: Added 'research_assistant/' to path #}
-    <link rel="stylesheet" href="{% static 'research_assistant/research_assistant/style.css' %}" > {# CHANGED: Added 'research_assistant/' to path #}
+    <link rel="icon" href="{% static 'research_assistant/favicon.png' %}" type="image/png"> {# CHANGED: Removed redundant 'research_assistant/' from path #}
+    <link rel="stylesheet" href="{% static 'research_assistant/style.css' %}" > {# CHANGED: Removed redundant 'research_assistant/' from path #}
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
     <div class="container">
         <aside class="sidebar">
             <div class="sidebar-header">
-                <img src="{% static 'research_assistant/research_assistant/logo.svg' %}" alt="Logo" class="logo"> {# CHANGED: Added 'research_assistant/' to path #}
+                <img src="{% static 'research_assistant/logo.svg' %}" alt="Logo" class="logo"> {# CHANGED: Removed redundant 'research_assistant/' from path #}
                 <h2>AI Bibliographer</h2>
             </div>
             <hr>
@@ -107,4 +105,3 @@
     {# GLOBAL Loading Overlay HTML - REMOVED #}
 </body>
 </html>
-
