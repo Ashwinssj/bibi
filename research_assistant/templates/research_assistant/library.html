@@ -1,3 +1,4 @@
+<!-- templates/research_assistant/library.html -->
 {% extends 'base.html' %}
 {% load static %}
 {% load custom_filters %} {# Load your custom filter here #}
@@ -36,6 +37,7 @@
                 {% if item.pages %}<p class="caption">Pages: {{ item.pages }}</p>{% endif %}
                 {% if item.publisher %}<p class="caption">Publisher: {{ item.publisher }}</p>{% endif %}
                 {% if item.issn %}<p class="caption">ISSN: {{ item.issn }}</p>{% endif %}
+                {% if item.doi %}<p class="caption">DOI: {{ item.doi }}</p>{% endif %}
 
                 <p class="caption">Original Query: <em>{{ item.query }}</em></p>
 
@@ -69,21 +71,21 @@
                     <form action="{% url 'research_assistant:library' %}" method="post" style="display: inline-block;">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="cite_library">
-                        <input type="hidden" name="item_key" value="{{ item.item_key }}">
+                        <input type="hidden" name="item_id" value="{{ item.id }}"> {# Changed to item.id #}
                         <button type="submit">Cite</button>
                     </form>
-                    <form action="{% url 'research_assistant:delete_library_item' item.item_key %}" method="post" onsubmit="return confirm('Are you sure you want to permanently delete this item?');" style="display: inline-block;">
+                    <form action="{% url 'research_assistant:delete_library_item' item.id %}" method="post" onsubmit="return confirm('Are you sure you want to permanently delete this item?');" style="display: inline-block;">
                         {% csrf_token %}
                         <button type="submit" class="button-delete">🗑️ Delete Item</button>
                     </form>
                 </div>
 
                 {# Display citations if available for library item #}
-                {% if show_citations_lib|get_item:item.item_key %}
+                {% if show_citations_lib|get_item:item.id|stringformat:"s" %} {# Use item.id as string #}
                     <details class="expander" open>
                         <summary>View Citations</summary>
                         <div class="citations-block">
-                            {% with citations_data=show_citations_lib|get_item:item.item_key %}
+                            {% with citations_data=show_citations_lib|get_item:item.id|stringformat:"s" %}
                                 {% for style, citation_text in citations_data.items %}
                                     <p><strong>{{ style }}:</strong> {{ citation_text|safe }}</p>
                                 {% endfor %}
@@ -91,7 +93,7 @@
                             <form action="{% url 'research_assistant:library' %}" method="post" style="display: inline-block;">
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="close_cite_library">
-                                <input type="hidden" name="item_key" value="{{ item.item_key }}">
+                                <input type="hidden" name="item_id" value="{{ item.id }}"> {# Changed to item.id #}
                                 <button type="submit" class="button-small">Close Citations</button>
                             </form>
                         </div>
@@ -102,4 +104,3 @@
     {% endif %}
 </div>
 {% endblock content %}
-

@@ -1,0 +1,88 @@
+<!-- templates/landing_page.html -->
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Bibliographer - Welcome</title>
+    <link rel="icon" href="{% static 'research_assistant/favicon.png' %}" type="image/png">
+    <link rel="stylesheet" href="{% static 'research_assistant/style.css' %}">
+    <style>
+        /* Specific styles for the landing page to center content */
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+        }
+        .welcome-container {
+            padding: 40px;
+            border-radius: 10px;
+            background-color: #16213e;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            max-width: 600px;
+            width: 90%;
+        }
+        .welcome-container h1 {
+            color: #90b8f8;
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+        .welcome-container p {
+            font-size: 1.2em;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+        .auth-buttons a {
+            display: inline-block;
+            padding: 12px 25px;
+            margin: 10px;
+            background-color: #90b8f8;
+            color: #1a1a2e;
+            text-decoration: none;
+            border-radius: 25px;
+            font-size: 1.1em;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        .auth-buttons a:hover {
+            background-color: #7a9fd8;
+            transform: translateY(-2px);
+        }
+        .auth-buttons a.google-signin {
+            background-color: #DB4437; /* Google Red */
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .auth-buttons a.google-signin:hover {
+            background-color: #C1352A;
+        }
+        .auth-buttons a.google-signin img {
+            width: 20px;
+            height: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="welcome-container">
+        <h1>Welcome to AI Bibliographer!</h1>
+        <p>Your intelligent research assistant. Search, summarize, annotate, and organize academic content with ease.</p>
+        <div class="auth-buttons">
+            <a href="{% url 'account_login' %}">Sign In</a>
+            <a href="{% url 'account_signup' %}">Register</a>
+            <a href="{% url 'google_login' %}" class="google-signin">
+                <img src="{% static 'research_assistant/google_logo.svg' %}" alt="Google Logo">
+                Sign In with Google
+            </a>
+        </div>
+    </div>
+</body>
+</html>

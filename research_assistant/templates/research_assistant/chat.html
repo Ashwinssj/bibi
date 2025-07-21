@@ -1,126 +1,125 @@
+<!-- templates/research_assistant/chat.html -->
 {% extends 'base.html' %}
 {% load static %}
 {% load custom_filters %} {# Load your custom filter here #}
 
 {% block content %}
 <div class="chat-interface">
-    {# Removed the chat-display div as per request #}
-    {# The main chat history is now in the sidebar. #}
+    {# Main chat window display #}
+    <div class="chat-display">
+        {% if last_search_query %}
+            <h2 style="color: #90b8f8; font-size: 2em; margin-top: 10px; text-align: center;">Research on: "{{ last_search_query }}"</h2>
+        {% endif %}
 
-    {# NEW: Display the last search query as a big heading #}
-    {% if last_search_query %}
-        <h2 style="color: #90b8f8; font-size: 2em; margin-top: 10px; text-align: center;">Research on: "{{ last_search_query }}"</h2>
-    {% endif %}
-
-    {# NEW: Collapsible Exa.ai Research Report #}
-    {% if last_exa_report %}
-        <details class="expander" open style="margin-top: 20px;">
-            <summary>Exa.ai Research Report</summary>
-            <div class="summary-content" style="padding: 10px 0;">
-                {{ last_exa_report|linebreaksbr }}
-            </div>
-        </details>
-    {% elif last_search_query %} {# Show 'No report' only if a search was actually performed #}
-        <details class="expander" style="margin-top: 20px;">
-            <summary>Exa.ai Research Report</summary>
-            <div class="summary-content" style="padding: 10px 0;">
-                No report content generated for this query.
-            </div>
-        </details>
-    {% endif %}
-
-    {% if current_processed_results %}
-        <hr>
-        <h2>🔬 Process Search Results</h2>
-        <p class="caption">Generate summaries, annotations, and save items to your library.</p>
-
-        {% for result in current_processed_results %}
-            <div class="search-result-card">
-                <h3><a href="{{ result.url }}" target="_blank">{{ result.title }}</a></h3>
-                {% if result.authors %}<p class="caption">Authors: {{ result.authors }}</p>{% endif %}
-                {% if result.year %}<p class="caption">Year: {{ result.year }}</p>{% endif %}
-                <p class="caption">Source Type: {{ result.source_type }}</p>
-                {% if result.doi %}<p class="caption">DOI: {{ result.doi }}</p>{% endif %}
-                {% if result.journal_name %}<p class="caption">Journal: {{ result.journal_name }}</p>{% endif %}
-                {% if result.volume %}<p class="caption">Volume: {{ result.volume }}</p>{% endif %}
-                {% if result.pages %}<p class="caption">Pages: {{ result.pages }}</p{% endif %}
-                {% if result.publisher %}<p class="caption">Publisher: {{ result.publisher }}</p>{% endif %}
-                {% if result.issn %}<p class="caption">ISSN: {{ result.issn }}</p>{% endif %}
-
-                {% if result.main_pub_url and result.url != result.main_pub_url %}
-                    <a href="{{ result.main_pub_url }}" target="_blank" class="link-button">Main Article</a>
-                {% endif %}
-                {% if result.pdf_url and result.url != result.pdf_url %}
-                    <a href="{{ result.pdf_url }}" target="_blank" class="link-button">PDF</a>
-                {% endif %}
-                
-                <p class="snippet">{{ result.content_snippet|truncatechars:300 }}...</p>
-
-                <div class="action-buttons">
-                    <form action="{% url 'research_assistant:process_result' result.url %}" method="post" style="display: inline-block;">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="summarize">
-                        <button type="submit" {% if result.source_type == "DOAJ Journal" %}disabled{% endif %}>📄 Summarize</button>
-                    </form>
-                    <form action="{% url 'research_assistant:process_result' result.url %}" method="post" style="display: inline-block;">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="annotate">
-                        <button type="submit" {% if not result.summary or result.source_type == "DOAJ Journal" %}disabled{% endif %}>✍️ Annotate</button>
-                    </form>
-                    <form action="{% url 'research_assistant:process_result' result.url %}" method="post" style="display: inline-block;">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="cite">
-                        <button type="submit">Cite</button>
-                    </form>
-                    <form action="{% url 'research_assistant:save_item' result.url %}" method="post" style="display: inline-block;">
-                        {% csrf_token %}
-                        <select name="save_to_folder_id" class="save-folder-select">
-                            <option value="root">All Items (Root)</option>
-                            {% for folder in folders %}
-                                <option value="{{ folder.id }}">{{ folder.name }}</option>
-                            {% endfor %}
-                        </select>
-                        <button type="submit" class="button-save">💾 Save</button>
-                    </form>
+        {% if last_exa_report %}
+            <details class="expander" open style="margin-top: 20px;">
+                <summary>Exa.ai Research Report</summary>
+                <div class="summary-content" style="padding: 10px 0;">
+                    {{ last_exa_report|linebreaksbr }}
                 </div>
+            </details>
+        {% elif last_search_query %}
+            <details class="expander" style="margin-top: 20px;">
+                <summary>Exa.ai Research Report</summary>
+                <div class="summary-content" style="padding: 10px 0;">
+                    No report content generated for this query.
+                </div>
+            </details>
+        {% endif %}
 
-                {% if result.summary %}
-                    <details class="expander">
-                        <summary>View Generated Summary</summary>
-                        <div class="summary-content">{{ result.summary|linebreaksbr }}</div>
-                    </details>
-                {% endif %}
-                {% if result.annotation %}
-                    <details class="expander">
-                        <summary>View Generated Annotation</summary>
-                        <div class="annotation-content">{{ result.annotation|linebreaksbr }}</div>
-                    </details>
-                {% endif %}
+        {% if current_processed_results %}
+            <hr>
+            <h2>🔬 Process Search Results</h2>
+            <p class="caption">Generate summaries, annotations, and save items to your library.</p>
 
-                {# Display citations if available for search result #}
-                {% if show_citations_search|get_item:result.url %}
-                    <details class="expander" open>
-                        <summary>View Citations</summary>
-                        <div class="citations-block">
-                            {% with citations_data=show_citations_search|get_item:result.url %}
-                                {% for style, citation_text in citations_data.items %}
-                                    <p><strong>{{ style }}:</strong> {{ citation_text|safe }}</p>
+            {% for result in current_processed_results %}
+                <div class="search-result-card">
+                    <h3><a href="{{ result.url }}" target="_blank">{{ result.title }}</a></h3>
+                    {% if result.authors %}<p class="caption">Authors: {{ result.authors }}</p>{% endif %}
+                    {% if result.year %}<p class="caption">Year: {{ result.year }}</p>{% endif %}
+                    <p class="caption">Source Type: {{ result.source_type }}</p>
+                    {% if result.doi %}<p class="caption">DOI: {{ result.doi }}</p>{% endif %}
+                    {% if result.journal_name %}<p class="caption">Journal: {{ result.journal_name }}</p>{% endif %}
+                    {% if result.volume %}<p class="caption">Volume: {{ result.volume }}</p>{% endif %}
+                    {% if result.pages %}<p class="caption">Pages: {{ result.pages }}</p>{% endif %}
+                    {% if result.publisher %}<p class="caption">Publisher: {{ result.publisher }}</p>{% endif %}
+                    {% if result.issn %}<p class="caption">ISSN: {{ result.issn }}</p>{% endif %}
+
+                    {% if result.main_pub_url and result.url != result.main_pub_url %}
+                        <a href="{{ result.main_pub_url }}" target="_blank" class="link-button">Main Article</a>
+                    {% endif %}
+                    {% if result.pdf_url and result.url != result.pdf_url %}
+                        <a href="{{ result.pdf_url }}" target="_blank" class="link-button">PDF</a>
+                    {% endif %}
+                    
+                    <p class="snippet">{{ result.content_snippet|truncatechars:300 }}...</p>
+
+                    <div class="action-buttons">
+                        <form action="{% url 'research_assistant:process_result' result.url %}" method="post" style="display: inline-block;">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="summarize">
+                            <button type="submit" {% if result.source_type == "DOAJ Journal" %}disabled{% endif %}>📄 Summarize</button>
+                        </form>
+                        <form action="{% url 'research_assistant:process_result' result.url %}" method="post" style="display: inline-block;">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="annotate">
+                            <button type="submit" {% if not result.summary or result.source_type == "DOAJ Journal" %}disabled{% endif %}>✍️ Annotate</button>
+                        </form>
+                        <form action="{% url 'research_assistant:process_result' result.url %}" method="post" style="display: inline-block;">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="cite">
+                            <button type="submit">Cite</button>
+                        </form>
+                        <form action="{% url 'research_assistant:save_item' result.url %}" method="post" style="display: inline-block;">
+                            {% csrf_token %}
+                            <select name="save_to_folder_id" class="save-folder-select">
+                                <option value="root">All Items (Root)</option>
+                                {% for folder in folders %}
+                                    <option value="{{ folder.id }}">{{ folder.name }}</option>
                                 {% endfor %}
-                            {% endwith %}
-                            <form action="{% url 'research_assistant:process_result' result.url %}" method="post" style="display: inline-block;">
-                                {% csrf_token %}
-                                <input type="hidden" name="action" value="close_cite_search">
-                                <button type="submit" class="button-small">Close Citations</button>
-                            </form>
-                        </div>
-                    </details>
-                {% endif %}
-            </div>
-        {% endfor %}
-    {% endif %}
+                            </select>
+                            <button type="submit" class="button-save">💾 Save</button>
+                        </form>
+                    </div>
+
+                    {% if result.summary %}
+                        <details class="expander">
+                            <summary>View Generated Summary</summary>
+                            <div class="summary-content">{{ result.summary|linebreaksbr }}</div>
+                        </details>
+                    {% endif %}
+                    {% if result.annotation %}
+                        <details class="expander">
+                            <summary>View Generated Annotation</summary>
+                            <div class="annotation-content">{{ result.annotation|linebreaksbr }}</div>
+                        </details>
+                    {% endif %}
+
+                    {# Display citations if available for search result #}
+                    {% if show_citations_search|get_item:result.url %}
+                        <details class="expander" open>
+                            <summary>View Citations</summary>
+                            <div class="citations-block">
+                                {% with citations_data=show_citations_search|get_item:result.url %}
+                                    {% for style, citation_text in citations_data.items %}
+                                        <p><strong>{{ style }}:</strong> {{ citation_text|safe }}</p>
+                                    {% endfor %}
+                                {% endwith %}
+                                <form action="{% url 'research_assistant:process_result' result.url %}" method="post" style="display: inline-block;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="close_cite_search">
+                                    <button type="submit" class="button-small">Close Citations</button>
+                                </form>
+                            </div>
+                        </details>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div> {# End of chat-display #}
 
     {# The chat input form remains at the bottom #}
-    <div class="chat-input-container"> {# New container for sticky positioning #}
+    <div class="chat-input-container">
         <form id="chat-form" action="{% url 'research_assistant:chat' %}" method="post" class="chat-input-form">
             {% csrf_token %}
             <input type="text" name="prompt" placeholder="Ask a follow-up..." required>
@@ -131,9 +130,6 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const chatForm = document.getElementById('chat-form');
-        // Removed global loading overlay logic as it's no longer used here.
-        
         // New logic for search result animations
         const searchResultCards = document.querySelectorAll('.search-result-card');
         searchResultCards.forEach((card, index) => {

@@ -1,9 +1,10 @@
+# research_assistant/services.py
 import os
 import json
 import uuid
 import datetime
 import time
-import redis
+# import redis # REMOVED: No longer used for application data or local client config
 from tavily import TavilyClient
 import google.generativeai as genai
 from serpapi import GoogleSearch
@@ -33,26 +34,22 @@ DOAJ_API_JOURNALS_URL = "https://doaj.org/api/v2/search/journals" # Global const
 # Global clients - initialized once when the module is loaded
 gemini_model = None
 tavily_client = None
-redis_client = None
 serpapi_client = None
 exa_client = None
 openai_exa_client = None
 SCRAPERAPI_API_KEY = None
 
 def configure_clients():
-    """Loads secrets and configures API clients and Redis connection."""
-    global gemini_model, tavily_client, redis_client, serpapi_client, exa_client, openai_exa_client, SCRAPERAPI_API_KEY
+    """Loads secrets and configures API clients."""
+    global gemini_model, tavily_client, serpapi_client, exa_client, openai_exa_client, SCRAPERAPI_API_KEY
 
-    if gemini_model and tavily_client and redis_client and serpapi_client and exa_client and openai_exa_client and SCRAPERAPI_API_KEY:
-        return # Already configured
+    # Check if already configured to avoid re-initialization
+    if gemini_model and tavily_client and serpapi_client and exa_client and openai_exa_client and SCRAPERAPI_API_KEY:
+        return
 
     try:
         GOOGLE_API_KEY = settings.GOOGLE_API_KEY
         TAVILY_API_KEY = settings.TAVILY_API_KEY
-        UPSTASH_REDIS_HOST = settings.UPSTASH_REDIS_HOST
-        UPSTASH_REDIS_PORT = settings.UPSTASH_REDIS_PORT
-        UPSTASH_REDIS_PASSWORD = settings.UPSTASH_REDIS_PASSWORD
-        REDIS_URL = settings.REDIS_URL # New: For Render's managed Redis
         SERPAPI_API_KEY = settings.SERPAPI_API_KEY
         EXA_API_KEY = settings.EXA_API_KEY
         SCRAPERAPI_API_KEY = settings.SCRAPERAPI_API_KEY
@@ -60,11 +57,6 @@ def configure_clients():
         missing_vars = []
         if not GOOGLE_API_KEY: missing_vars.append("GOOGLE_API_KEY")
         if not TAVILY_API_KEY: missing_vars.append("TAVILY_API_KEY")
-        # Check for Redis variables based on whether REDIS_URL is available
-        if not REDIS_URL:
-            if not UPSTASH_REDIS_HOST: missing_vars.append("UPSTASH_REDIS_HOST")
-            if not UPSTASH_REDIS_PORT: missing_vars.append("UPSTASH_REDIS_PORT")
-            if not UPSTASH_REDIS_PASSWORD: missing_vars.append("UPSTASH_REDIS_PASSWORD")
         if not SERPAPI_API_KEY: missing_vars.append("SERPAPI_API_KEY")
         if not EXA_API_KEY: missing_vars.append("EXA_API_KEY")
         if not SCRAPERAPI_API_KEY: missing_vars.append("SCRAPERAPI_API_KEY")
@@ -72,7 +64,7 @@ def configure_clients():
         print(f"DEBUG: Missing environment variables check: {missing_vars}")
 
         if missing_vars:
-            raise ValueError(f"⚠️ Critical API keys or Redis connection details missing FROM ENV VARS: {', '.join(missing_vars)}. Please check Django settings and .env file.")
+            raise ValueError(f"⚠️ Critical API keys missing FROM ENV VARS: {', '.join(missing_vars)}. Please check Django settings and .env file.")
 
         # Configure Gemini
         genai.configure(api_key=GOOGLE_API_KEY)
@@ -92,31 +84,8 @@ def configure_clients():
             base_url="https://api.exa.ai",
             api_key=EXA_API_KEY,
         )
+        print("DEBUG: API clients configured successfully.")
 
-        # Configure Redis
-        if REDIS_URL:
-            # Use REDIS_URL provided by Render's managed Redis
-            print(f"DEBUG: Using REDIS_URL from Render: {REDIS_URL[:20]}...") # Mask URL for security
-            redis_client = redis.from_url(REDIS_URL, decode_responses=True)
-        else:
-            # Fallback to individual UPSTASH variables for local development or other setups
-            if not isinstance(UPSTASH_REDIS_PORT, int) or UPSTASH_REDIS_PORT == 0:
-                raise ValueError(f"🚨 Invalid or missing UPSTASH_REDIS_PORT: '{UPSTASH_REDIS_PORT}'. It must be a number.")
-
-            print(f"DEBUG: Falling back to UPSTASH variables. Host: {UPSTASH_REDIS_HOST}, Port: {UPSTASH_REDIS_PORT}")
-            redis_client = redis.Redis(
-                host=UPSTASH_REDIS_HOST,
-                port=UPSTASH_REDIS_PORT,
-                password=UPSTASH_REDIS_PASSWORD,
-                ssl=True, # Assuming Upstash always uses SSL
-                decode_responses=True
-            )
-        print("DEBUG: Attempting Redis ping...")
-        redis_client.ping()
-        print("DEBUG: Redis ping successful.")
-
-    except redis.exceptions.ConnectionError as e:
-        raise ConnectionError(f"🚨 Could not connect to Redis: {e}. Please verify connection details and Upstash instance status.") from e
     except ValueError as e:
         raise ValueError(f"🚨 Configuration error: {e}") from e
     except Exception as e:
@@ -125,184 +94,8 @@ def configure_clients():
 # Initialize clients on module load
 configure_clients()
 
-# --- Redis Data Structure Keys ---
-FOLDER_MASTER_LIST_KEY = "folders"
-FOLDER_PREFIX = "folder:"
-FOLDER_ITEMS_PREFIX = "folder_items:"
-ITEM_PREFIX = "item:"
-CHAT_HISTORY_KEY_PREFIX = "chat_history:"
-
-# --- Redis Helper Functions ---
-
-# Folders
-def create_folder(name):
-    """Creates a new folder in Redis."""
-    if not name or name.isspace():
-        return None, "Folder name cannot be empty."
-    folder_id = str(uuid.uuid4())
-    folder_key = f"{FOLDER_PREFIX}{folder_id}"
-    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    try:
-        with redis_client.pipeline() as pipe:
-            pipe.hset(folder_key, mapping={
-                "id": folder_id,
-                "name": name,
-                "created_timestamp": timestamp
-            })
-            pipe.sadd(FOLDER_MASTER_LIST_KEY, folder_key)
-            pipe.execute()
-        return folder_id, None
-    except Exception as e:
-        return None, f"Error creating folder: {e}"
-
-def get_folders():
-    """Retrieves all folders from Redis."""
-    try:
-        folder_keys = list(redis_client.smembers(FOLDER_MASTER_LIST_KEY))
-        folders = []
-        if folder_keys:
-            pipe = redis_client.pipeline()
-            for key in folder_keys:
-                pipe.hgetall(key)
-            results = pipe.execute()
-            for i, data in enumerate(results):
-                 if data and 'name' in data and 'id' in data:
-                     data['folder_key'] = folder_keys[i]
-                     folders.append(data)
-                 else:
-                     # Inconsistent data, remove the key from the master list
-                     redis_client.srem(FOLDER_MASTER_LIST_KEY, folder_keys[i])
-            folders.sort(key=lambda x: x.get('name', '').lower())
-        return folders, None
-    except Exception as e:
-        return [], f"Error retrieving folders: {e}"
-
-def delete_folder(folder_key):
-    """Deletes a folder metadata and its associated items set."""
-    folder_id = folder_key.split(":", 1)[1]
-    folder_items_key = f"{FOLDER_ITEMS_PREFIX}{folder_id}"
-    try:
-        with redis_client.pipeline() as pipe:
-            pipe.delete(folder_key)
-            pipe.delete(folder_items_key)
-            pipe.srem(FOLDER_MASTER_LIST_KEY, folder_key)
-            pipe.execute()
-        return None
-    except Exception as e:
-        return f"Error deleting folder: {e}"
-
-# Library Items
-def save_library_item(title, url, query, source_type, folder_id="root", summary="", annotation="", content_snippet="", authors="", year="", pdf_url="", main_pub_url="", doi="", journal_name="", volume="", pages="", publisher="", issn=""):
-    """Saves a library item to Redis."""
-    item_uuid = str(uuid.uuid4())
-    item_key = f"{ITEM_PREFIX}{item_uuid}"
-    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    item_data = {
-        "id": item_uuid,
-        "title": title or "Untitled",
-        "url": url,
-        "query": query or "",
-        "summary": summary or "",
-        "annotation": annotation or "",
-        "content_snippet": content_snippet or "",
-        "folder_id": folder_id if folder_id != "root" else "",
-        "added_timestamp": timestamp,
-        "source_type": source_type or "Website",
-        "authors": authors or "",
-        "year": str(year) if year else "",
-        "pdf_url": pdf_url or "",
-        "main_pub_url": main_pub_url or "",
-        "doi": doi or "",
-        "journal_name": journal_name or "",
-        "volume": volume or "",
-        "pages": pages or "",
-        "publisher": publisher or "", # NEW
-        "issn": issn or "" # NEW
-    }
-    try:
-        with redis_client.pipeline() as pipe:
-            pipe.hset(item_key, mapping=item_data)
-            if folder_id != "root":
-                folder_items_key = f"{FOLDER_ITEMS_PREFIX}{folder_id}"
-                pipe.sadd(folder_items_key, item_key)
-            pipe.execute()
-        return item_key, None
-    except Exception as e:
-        return None, f"Error saving item: {e}"
-
-def get_library_items(folder_id="root"):
-    """Retrieves items, optionally filtered by folder_id."""
-    try:
-        item_keys = []
-        if folder_id == "root":
-            all_keys = redis_client.keys(f"{ITEM_PREFIX}*")
-            if not all_keys: return [], None
-            pipe = redis_client.pipeline()
-            for key in all_keys:
-                 pipe.hget(key, "folder_id")
-            folder_ids = pipe.execute()
-            item_keys = [key for key, f_id in zip(all_keys, folder_ids) if not f_id]
-        else:
-            folder_items_key = f"{FOLDER_ITEMS_PREFIX}{folder_id}"
-            item_keys = list(redis_client.smembers(folder_items_key))
-
-        items = []
-        if item_keys:
-            pipe = redis_client.pipeline()
-            for key in item_keys:
-                pipe.hgetall(key)
-            results = pipe.execute()
-            for i, data in enumerate(results):
-                 if data:
-                    data['item_key'] = item_keys[i]
-                    items.append(data)
-                 else:
-                    # Inconsistent data, remove the key from the folder set
-                    if folder_id != "root":
-                        redis_client.srem(f"{FOLDER_ITEMS_PREFIX}{folder_id}", item_keys[i])
-
-            items.sort(key=lambda x: x.get('added_timestamp', ''), reverse=True)
-        return items, None
-    except Exception as e:
-        return [], f"Error retrieving library items: {e}"
-
-def delete_library_item(item_key):
-    """Deletes an item from Redis and removes it from its folder set."""
-    try:
-        folder_id = redis_client.hget(item_key, "folder_id")
-
-        with redis_client.pipeline() as pipe:
-            pipe.delete(item_key)
-            if folder_id:
-                folder_items_key = f"{FOLDER_ITEMS_PREFIX}{folder_id}"
-                pipe.srem(folder_items_key, item_key)
-            pipe.execute()
-        return None
-    except Exception as e:
-        return f"Error deleting item: {e}"
-
-# Chat History
-def save_chat_message(session_id: str, role: str, content: str):
-    """Appends a chat message to the Redis list for the session."""
-    key = f"{CHAT_HISTORY_KEY_PREFIX}{session_id}"
-    message = json.dumps({"role": role, "content": content})
-    try:
-        redis_client.rpush(key, message)
-        redis_client.ltrim(key, -100, -1) # Keep last 100 messages
-        return None
-    except Exception as e:
-        return f"Could not save chat message to Redis: {e}"
-    
-def load_chat_history(session_id):
-    """Loads chat history for the session from Redis."""
-    key = f"{CHAT_HISTORY_KEY_PREFIX}{session_id}"
-    try:
-        message_strings = redis_client.lrange(key, 0, -1)
-        return [json.loads(msg) for msg in message_strings], None
-    except Exception as e:
-        return [], f"Could not load chat history from Redis: {e}"
-
-# --- API Call Helper Functions ---
+# --- All Redis-related data persistence functions were already removed in the previous step. ---
+# --- Only API call helpers and citation formatting functions remain. ---
 
 def scrape_article_content(url):
     """
@@ -578,7 +371,7 @@ def search_google_scholar(query, num_results=7):
                     volume = vol_pages_match.group(1)
                     pages = vol_pages_match.group(3) # Group 3 captures the pages (e.g., S36-S40 or 1-10)
                 else: # Try just volume if no pages
-                    vol_match = re.search(r'\b(\d+)\b', temp_summary_for_parsing)
+                    vol_match = re.search(r'\b(\d{4})\b', temp_summary_for_parsing)
                     if vol_match and vol_match.group(1) != year: # Ensure it's not the year itself
                         volume = vol_match.group(1)
 
@@ -1166,7 +959,7 @@ def generate_annotation_prompt(title, url, query, summary, authors="", year=""):
     Instructions: Write a concise annotation (75-150 words) based *only* on the provided summary. Describe the main topic/argument, assess relevance to the original query, mention key findings if available, and evaluate its potential usefulness for research on "{query}". Format as a standard annotation paragraph.
     """
 
-# --- Citation Formatting Functions (NEW) ---
+# --- Citation Formatting Functions (These remain) ---
 
 def _split_and_parse_authors(authors_str):
     """Helper to split and parse author names from a string."""

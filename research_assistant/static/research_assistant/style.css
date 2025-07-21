@@ -229,11 +229,18 @@ body {
     position: relative; /* Needed for loading overlay positioning */
 }
 
+/* New: Chat Display for main content area */
+.chat-display {
+    flex-grow: 1; /* Allows it to take up available space */
+    overflow-y: auto; /* Make chat messages scrollable */
+    padding-right: 20px; /* Add some padding if needed */
+    padding-bottom: 20px; /* Space above input container */
+}
+
 /* Sticky Chat Input Container */
 .chat-input-container {
     position: sticky;
     bottom: 0;
-    /* Removed 'left: 0;' as it's redundant for a sticky element within a flow */
     width: 100%;
     background-color: #1a1a2e; /* Match body background */
     padding: 20px 0; /* Add vertical padding */
@@ -572,6 +579,148 @@ details.expander[open] summary:before {
     }
 }
 
+/* Allauth forms styling */
+.allauth-form {
+    background-color: #16213e;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    max-width: 400px;
+    margin: 50px auto;
+    color: #e0e0e0;
+}
+
+.allauth-form h2 {
+    color: #90b8f8;
+    text-align: center;
+    margin-bottom: 25px;
+    font-size: 2em;
+}
+
+.allauth-form p {
+    margin-bottom: 15px;
+}
+
+.allauth-form label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #c0c0c0;
+}
+
+.allauth-form input[type="text"],
+.allauth-form input[type="email"],
+.allauth-form input[type="password"] {
+    width: calc(100% - 20px);
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #0f3460;
+    border-radius: 5px;
+    background-color: #2c3e50;
+    color: #e0e0e0;
+    font-size: 1em;
+    box-sizing: border-box;
+}
+
+.allauth-form input[type="text"]::placeholder,
+.allauth-form input[type="email"]::placeholder,
+.allauth-form input[type="password"]::placeholder {
+    color: #a0a0a0;
+}
+
+.allauth-form button[type="submit"] {
+    width: 100%;
+    padding: 12px;
+    background-color: #90b8f8;
+    color: #1a1a2e;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 1.1em;
+    font-weight: bold;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.allauth-form button[type="submit"]:hover {
+    background-color: #7a9fd8;
+    transform: translateY(-2px);
+}
+
+.allauth-form .helptext {
+    font-size: 0.85em;
+    color: #a0a0a0;
+    margin-top: -10px;
+    margin-bottom: 15px;
+}
+
+.allauth-form ul.errorlist {
+    color: #f8d7da;
+    background-color: #721c24;
+    border-radius: 5px;
+    padding: 10px 15px;
+    list-style: none;
+    margin-bottom: 15px;
+}
+
+.allauth-form .button.secondaryAction {
+    display: block;
+    text-align: center;
+    margin-top: 20px;
+}
+
+.allauth-form .button.secondaryAction a {
+    color: #90b8f8;
+    text-decoration: none;
+    font-size: 0.95em;
+    transition: color 0.3s ease;
+}
+
+.allauth-form .button.secondaryAction a:hover {
+    color: #e0e0e0;
+    text-decoration: underline;
+}
+
+/* Social Account buttons */
+.socialaccount_providers {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.socialaccount_providers li {
+    list-style: none;
+    margin-bottom: 10px;
+}
+
+.socialaccount_providers a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    border-radius: 25px;
+    text-decoration: none;
+    font-size: 1em;
+    font-weight: bold;
+    width: 80%; /* Adjust width for social buttons */
+    max-width: 300px;
+    box-sizing: border-box;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.socialaccount_providers .google a {
+    background-color: #DB4437; /* Google Red */
+    color: white;
+}
+
+.socialaccount_providers .google a:hover {
+    background-color: #C1352A;
+    transform: translateY(-2px);
+}
+
+.socialaccount_providers .google img {
+    width: 20px;
+    height: 20px;
+    margin-right: 10px;
+}
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
@@ -610,17 +759,15 @@ details.expander[open] summary:before {
         max-width: 95%;
     }
 
-.chat-input-form {
-    display: flex;
-    gap: 10px;
-    /* Removed max-width and margin auto to allow the form to stretch */
-    /* max-width: 900px; */
-    /* margin: 0 auto; */
-    padding: 0 20px; /* This padding now defines the inner spacing, aligning with card content */
-}
+    .chat-input-form {
+        display: flex;
+        flex-direction: column; /* Stack input and button vertically */
+        gap: 10px;
+        padding: 0 20px;
+    }
 
     .chat-input-form input[type="text"] {
-        width: calc(100% - 30px); /* Adjust for padding */
+        width: 100%; /* Full width for input */
     }
 
     .chat-input-form button {
@@ -636,4 +783,13 @@ details.expander[open] summary:before {
         width: 100%;
         margin-right: 0 !important;
     }
+
+    .allauth-form {
+        margin: 20px auto;
+        padding: 20px;
+    }
+    .socialaccount_providers a {
+        width: 100%;
+    }
 }
+

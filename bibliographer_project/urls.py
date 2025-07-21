@@ -1,3 +1,4 @@
+# bibliographer_project/urls.py
 """
 URL configuration for bibliographer_project project.
 
@@ -18,9 +19,12 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path,include
 from django.views.generic.base import RedirectView
+from research_assistant import views as research_views # Import your app's views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('accounts/', include('allauth.urls')), # Allauth URLs for login, signup, social login
     path('research/', include('research_assistant.urls')), # Include your app's URLs
-    path('', RedirectView.as_view(url='/research/', permanent=True)), # Redirect root to research app
+    path('', research_views.landing_page_view, name='landing_page'), # New public landing page
 ]
+

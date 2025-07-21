@@ -1,3 +1,4 @@
+# bibliographer_project/settings.py
 """
 Django settings for bibliographer_project project.
 
@@ -13,6 +14,7 @@ import dj_database_url
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -21,12 +23,11 @@ load_dotenv()
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 
-BASE_DIR=Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-_zpdo2j0bm7rh3$3(80y8kyx4w!a(ea=gx%bpurrd%^)5n3d4#')
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-_zpdo2j0bm7rh3$3(80y8kyx4w!a(ea=gx%bpurrd%^)5n3d4#') # Use a strong, generated key in production
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True' # Read DEBUG from environment variable
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
 
@@ -39,8 +40,15 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
-    "django.contrib.staticfiles", # Make sure this is here
+    "django.contrib.staticfiles",
     "research_assistant", # Make sure your app is here
+    
+    # Allauth apps for user authentication
+    "django.contrib.sites", # Required by allauth
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google", # For Google Sign-in
 ]
 
 MIDDLEWARE = [
@@ -48,10 +56,12 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware", # For serving static files in production
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Allauth middleware: Add the account middleware below the authentication middleware
+    "allauth.account.middleware.AccountMiddleware",
 ]
 
 ROOT_URLCONF = "bibliographer_project.urls"
@@ -59,7 +69,7 @@ ROOT_URLCONF = "bibliographer_project.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR/'templates'],
+        "DIRS": [BASE_DIR/'templates'], # Project-wide templates directory
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -67,6 +77,9 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                # `allauth` needs this from django.template.context_processors.request for its templates
+                # 'allauth.account.context_processors.account',
+                # 'allauth.socialaccount.context_processors.socialaccount',
             ],
         },
     },
@@ -85,10 +98,17 @@ if DATABASE_URL:
         "default": dj_database_url.config(default=DATABASE_URL, conn_max_age=600)
     }
 else:
+    # Fallback to local PostgreSQL for local development if DATABASE_URL is not set
+    # Ensure you have PostgreSQL running locally and the database/user are created.
+    # Example for local PostgreSQL (adjust as needed for your setup)
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": "ai_bibliographer_db", # Your local PostgreSQL database name
+            "USER": "postgres",        # Your local PostgreSQL user
+            "PASSWORD": "ashwin", # Your local PostgreSQL password
+            "HOST": "localhost",           # Or your PostgreSQL host IP
+            "PORT": "5432",                # Default PostgreSQL port
         }
     }
 
@@ -148,13 +168,63 @@ if not DEBUG:
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Allauth settings
+SITE_ID = 1 # Required for django-allauth. After running migrations, go to Django Admin and configure Site object.
+LOGIN_REDIRECT_URL = '/research/' # Redirect to research app after successful login
+ACCOUNT_LOGOUT_REDIRECT_URL = '/accounts/login/' # Redirect to login page after logout
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_USERNAME_REQUIRED = False # Users will sign up/log in with email
+ACCOUNT_AUTHENTICATION_METHOD = 'email' # Allow login with email
+ACCOUNT_EMAIL_VERIFICATION = 'none' # 'mandatory' or 'optional' for production, 'none' for quick dev
+
+AUTHENTICATION_BACKENDS = [
+    # Needed to login by username in Django Admin, regardless of `allauth`
+    'django.contrib.auth.backends.ModelBackend',
+    # `allauth` specific authentication methods, such as login by email
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+# Google Social Account settings
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'APP': {
+            'client_id': os.environ.get('GOOGLE_CLIENT_ID'),
+            'secret': os.environ.get('GOOGLE_CLIENT_SECRET'),
+            'key': '' # not needed for Google
+        },
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'offline',
+        },
+        'VERIFIED_EMAIL': True,
+    }
+}
+
+
+# API Keys from environment variables
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
-UPSTASH_REDIS_HOST = os.getenv("UPSTASH_REDIS_HOST")
-UPSTASH_REDIS_PORT = int(os.getenv("UPSTASH_REDIS_PORT", 0)) # Ensure it's an int
-UPSTASH_REDIS_PASSWORD = os.getenv("UPSTASH_REDIS_PASSWORD")
-REDIS_URL = os.getenv("REDIS_URL") # New: For Render's managed Redis
 SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
 EXA_API_KEY = os.getenv("EXA_API_KEY")
 SCRAPERAPI_API_KEY = os.getenv("SCRAPERAPI_API_KEY")
 
+# Redis configuration for Django's cache/session backend (ONLY if REDIS_URL is provided by Render)
+REDIS_URL = os.getenv("REDIS_URL") # For Render's managed Redis
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                "CONNECTION_POOL_KWARGS": {"ssl_cert_reqs": None}, # Required for some Redis deployments like Upstash
+            }
+        }
+    }
+    # Use Redis for sessions
+    SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+    SESSION_CACHE_ALIAS = "default"
+# If REDIS_URL is not set (e.g., local development), Django will use its default DB session backend.

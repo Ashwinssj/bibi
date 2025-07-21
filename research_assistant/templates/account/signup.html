@@ -1,0 +1,39 @@
+{% extends "base.html" %} {# Extend your project's base.html #}
+{% load i18n %}
+{% load account socialaccount %}
+
+{% block head_title %}{% trans "Sign Up" %}{% endblock %}
+
+{% block content %}
+{# Wrap the entire form content in the allauth-form class #}
+<div class="allauth-form">
+    <h2>{% trans "Sign Up" %}</h2>
+
+    {% get_providers as socialaccount_providers %}
+
+    <p>
+        {% blocktrans %}Already have an account? Then please {% endblocktrans %}
+        <a href="{{ login_url }}">{% trans "sign in" %}</a>.{% trans "first." %}
+    </p>
+
+    <form class="signup" id="signup_form" method="POST" action="{% url 'account_signup' %}">
+      {% csrf_token %}
+      {{ form.as_p }} {# Renders form fields wrapped in <p> tags #}
+      {% if redirect_field_value %}
+      <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}" />
+      {% endif %}
+      {# The Sign Up button is styled by .allauth-form button[type="submit"] in style.css #}
+      <button type="submit">{% trans "Sign Up" %}</button>
+    </form>
+
+    {% if socialaccount_providers %}
+    <hr> {# Add a horizontal rule for visual separation #}
+    <h3>{% trans "Or use a third-party" %}</h3>
+    <div class="socialaccount_providers">
+      {% include "socialaccount/snippets/provider_list.html" with process="signup" %}
+    </div>
+
+    {% include "socialaccount/snippets/signup_extra.html" %}
+    {% endif %}
+</div>
+{% endblock %}

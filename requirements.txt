@@ -1,3 +1,4 @@
+# requirements.txt
 alabaster==1.0.0
 altair==5.5.0
 annotated-types==0.7.0
@@ -116,4 +117,6 @@ wrapt==1.17.2
 wsproto==1.2.0
 dj-database-url==2.2.0
 gunicorn==22.0.0
-psycopg[binary]
+psycopg[binary] # For PostgreSQL connectivity
+django-allauth==0.63.0 # For user authentication and social login
+django-redis==5.4.0 # For Redis cache backend (used for Render deployment)
